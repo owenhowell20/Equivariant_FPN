@@ -22,8 +22,6 @@ class Equ_Bottleneck( nn.Module ):
         ### declare SO(2) gspace
         gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
 
-        print( in_regular_mulplicity * so2_gspace )
-
         ### input, hidden and output representations
         rho_in = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*in_regular_mulplicity )
         rho_hidden = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*hidden_regular_mulplicity )
