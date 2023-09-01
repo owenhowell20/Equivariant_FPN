@@ -125,6 +125,9 @@ class FPN(nn.Module):
         p4 = self._upsample_add(p5, self.latlayer1(c4))
         p3 = self._upsample_add(p4, self.latlayer2(c3))
         p2 = self._upsample_add(p3, self.latlayer3(c2))
+
+        print(p4.shape , p3.shape, p3.shape,p2.shape)
+
         # Smooth
         p4 = self.smooth1(p4)
         p3 = self.smooth2(p3)
@@ -144,4 +147,3 @@ def test():
         print(fm.size())
 
 
-test()
