@@ -13,7 +13,6 @@ from bottleneck import Equ_Bottleneck
 
 ### to do:
 ### 1. Train on a real dataset, i.e. build pipeline
-### 2. fix the slight spatial dimension offset
 
 
 ### so2-equivarient feature pyrimid network
@@ -71,17 +70,18 @@ class eqv_FPN(nn.Module):
         rho_lat_f = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
 
         ### lateral convolutions
-        self.latlayer1 = e2cnn.nn.R2Conv( rho_lat_a , rho_lat_b , kernel_size=1, stride=1, padding=1)
-        self.latlayer2 = e2cnn.nn.R2Conv( rho_lat_c , rho_lat_d , kernel_size=1, stride=1, padding=1)
-        self.latlayer3 = e2cnn.nn.R2Conv( rho_lat_e, rho_lat_f , kernel_size=1, stride=1, padding=1)
+        self.latlayer1 = e2cnn.nn.R2Conv( rho_lat_a , rho_lat_b , kernel_size=1, stride=1, padding=0)
+        self.latlayer2 = e2cnn.nn.R2Conv( rho_lat_c , rho_lat_d , kernel_size=1, stride=1, padding=0)
+        self.latlayer3 = e2cnn.nn.R2Conv( rho_lat_e, rho_lat_f , kernel_size=1, stride=1, padding=0)
 
 
     ###make layer function: block should be an NN with same input and 
     def _make_layer(self, block, so2_gspace , planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
+        strides = [stride] + [1]*(num_blocks-1) ### stride should always be power of two for bottleneck
         layers = []
+
         for stride in strides: ### changes the strides
-            layers.append( block( so2_gspace , self.in_planes, planes, stride) )
+            layers.append( block( so2_gspace , self.in_planes, planes, stride) ) ### stride should be power of two
             self.in_planes = planes * block.expansion
 
         return nn.Sequential(*layers)
@@ -94,20 +94,18 @@ class eqv_FPN(nn.Module):
         '''
         ### now, both x and y are geometric tensors of equal type:
         in_type = x.type
-        _,_,H,W = y.size()
+        #_,_,a,b = x.shape
+        #_,_,H,W = y.size()
 
-        scale_factor = 2 ### try a constant 2 scale factor
+        scale_factor = 2 ### constant 2 scale factor
 
         ### mesure the upsampling error
-        ### self.upsample = e2cnn.nn.R2Upsampling(in_type, scale_factor=None, size=(H,W), mode='bilinear')
+        #self.upsample = e2cnn.nn.R2Upsampling(in_type, scale_factor=None, size=(H,W), mode='bilinear')
         self.upsample = e2cnn.nn.R2Upsampling(in_type, scale_factor=scale_factor, mode='bilinear')
 
-        print('start upsampling')
-        print( x.shape ,  y.shape )
-
-        output = self.upsample(  x  ) + y
-
-        return output
+       
+        output = self.upsample(  x  ) 
+        return output + y
 
     def forward(self, x):
 
@@ -125,13 +123,10 @@ class eqv_FPN(nn.Module):
         ### max pool over spatial dimensions 
         c1 = self.max_pool2d_layer( c1 ) 
     
-        print( 'c1:' , c1.shape)
+       
 
         ### now up layers
         c2 = self.layer1(c1)
-
-        print( 'c2:' , c2.shape )
-
         c3 = self.layer2(c2)  
         c4 = self.layer3(c3)  
         c5 = self.layer4(c4)  
@@ -169,51 +164,54 @@ def test():
 
 
 
+if __name__ == "__main__":
+
+	### check for so2 equivarience
+	so2_gspace = 4
+	gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
+
+	### 3 copies of the trivial rep: input images are 3 color channels
+	rho_triv = e2cnn.nn.FieldType( gspace , [gspace.trivial_repr]*3 )
+	so2 = gspace.fibergroup
+
+	x = torch.rand( 10 , 3 , 256 , 256 )
+	x = e2cnn.nn.GeometricTensor( x , rho_triv )
+
+	f = eqv_FPN101( so2_gspace )
+
+	### unchanged y-values:
+	y = f( x.tensor )
+
+	for g in so2.elements:
+
+	    x_rot = x.transform(g)
+
+	    ### new inputs
+	    y_rot = f( x_rot.tensor )
+
+	    # ### meausre the differences:
+	    z0 = y[0].transform(g)
+	    z1 = y[1].transform(g)
+	    z2 = y[2].transform(g)
+	    z3 = y[3].transform(g)
 
 
-### check for so2 equivarience
-so2_gspace = 4
-gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
+	    ### mesure differences
+	    d0 = z0.tensor - y_rot[0].tensor
+	    d1 = z1.tensor - y_rot[1].tensor
+	    d2 = z2.tensor - y_rot[2].tensor
+	    d3 = z3.tensor - y_rot[3].tensor
 
-### 3 copies of the trivial rep: input images are 3 color channels
-rho_triv = e2cnn.nn.FieldType( gspace , [gspace.trivial_repr]*3 )
-so2 = gspace.fibergroup
+	    ### take the norm
+	    print()
+	    print("group element:" , g)
+	    print( 'zero percentage error:' ,  torch.norm(d0)/torch.norm( z0.tensor ) ) 
+	    print( 'one percentage error:' ,  torch.norm(d1)/torch.norm( z1.tensor ) ) 
+	    print( 'two percentage error:' ,  torch.norm(d2)/torch.norm( z2.tensor ) ) 
+	    print( 'three percentage error:' ,  torch.norm(d3)/torch.norm( z3.tensor ) ) 
+	    print()
 
-x = torch.rand( 10 , 3 , 256 , 256 )
-x = e2cnn.nn.GeometricTensor( x , rho_triv )
-
-f = eqv_FPN101( so2_gspace )
-
-### unchanged y-values:
-y = f( x.tensor )
-
-for g in so2.elements:
-
-    x_rot = x.transform(g)
-
-    ### new inputs
-    y_rot = f( x_rot.tensor )
-
-    # ### meausre the differences:
-    z0 = y[0].transform(g)
-    z1 = y[1].transform(g)
-    z2 = y[2].transform(g)
-    z3 = y[3].transform(g)
-
-
-    ### mesure differences
-    d0 = z0.tensor - y_rot[0].tensor
-    d1 = z1.tensor - y_rot[1].tensor
-    d2 = z2.tensor - y_rot[2].tensor
-    d3 = z3.tensor - y_rot[3].tensor
-
-    ### take the norm
-    print( 'zero percentage error:' ,  torch.norm(d0)/torch.norm( z0.tensor ) ) 
-    print( 'one percentage error:' ,  torch.norm(d1)/torch.norm( z1.tensor ) ) 
-    print( 'two percentage error:' ,  torch.norm(d2)/torch.norm( z2.tensor ) ) 
-    print( 'three percentage error:' ,  torch.norm(d3)/torch.norm( z3.tensor ) ) 
-
-    ### check types of outputs
-    ###print( y_rot[0].type , y_rot[1].type , y_rot[2].type , y_rot[3].type )
+	    ### check types of outputs
+	    ###print( y_rot[0].type , y_rot[1].type , y_rot[2].type , y_rot[3].type )
 
 

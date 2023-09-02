@@ -80,8 +80,8 @@ class Equ_Bottleneck( nn.Module ):
         ### shortcut
         passed = self.shortcut_conv( x ) 
 
-        print('bottleneck')
-        print( out.shape )
+        #print('bottleneck output:')
+        #print( out.shape )
         
         ### add signals, they both transform in same way
         out = out + passed
@@ -97,13 +97,13 @@ def check_neck():
     ### check neck
     so2_gspace = 4
     in_planes = 64
-    planes = 64
+    planes = 2*in_planes
     stride = 1
 
     ### so2-equivarient bottleneck
     neck = Equ_Bottleneck(so2_gspace, in_planes, planes,  stride )
 
-    x = torch.rand( 10 , in_planes , 250 , 250 )
+    x = torch.rand( 10 , in_planes , 256 , 256 )
 
     in_regular_mulplicity = int( in_planes/so2_gspace )
     gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
@@ -112,6 +112,12 @@ def check_neck():
 
     y = neck(x)
 
-    print( 'output:' , y.shape )
+    print( 'full output shape:' , y.shape )
 
     return 1
+
+
+
+if __name__ == "__main__":
+
+    check_neck()
