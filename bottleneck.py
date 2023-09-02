@@ -79,6 +79,9 @@ class Equ_Bottleneck( nn.Module ):
         
         ### shortcut
         passed = self.shortcut_conv( x ) 
+
+        print('bottleneck')
+        print( out.shape )
         
         ### add signals, they both transform in same way
         out = out + passed

@@ -11,6 +11,11 @@ from torch.autograd import Variable
 from bottleneck import Equ_Bottleneck
 
 
+### to do:
+### 1. Train on a real dataset, i.e. build pipeline
+### 2. fix the slight spatial dimension offset
+
+
 ### so2-equivarient feature pyrimid network
 class eqv_FPN(nn.Module):
     def __init__(self, so2_gspace, block, num_blocks):
@@ -91,10 +96,16 @@ class eqv_FPN(nn.Module):
         in_type = x.type
         _,_,H,W = y.size()
 
-        ### mesure the upsampling error
-        self.upsample = e2cnn.nn.R2Upsampling(in_type, scale_factor=None, size=(H,W), mode='bilinear')
+        scale_factor = 2 ### try a constant 2 scale factor
 
-        output = self.upsample( x  ) + y
+        ### mesure the upsampling error
+        ### self.upsample = e2cnn.nn.R2Upsampling(in_type, scale_factor=None, size=(H,W), mode='bilinear')
+        self.upsample = e2cnn.nn.R2Upsampling(in_type, scale_factor=scale_factor, mode='bilinear')
+
+        print('start upsampling')
+        print( x.shape ,  y.shape )
+
+        output = self.upsample(  x  ) + y
 
         return output
 
@@ -108,11 +119,19 @@ class eqv_FPN(nn.Module):
         c1 = self.conv_first(x)
         c1 = self.relu_first( c1 )
 
+
+
+
         ### max pool over spatial dimensions 
         c1 = self.max_pool2d_layer( c1 ) 
     
+        print( 'c1:' , c1.shape)
+
         ### now up layers
         c2 = self.layer1(c1)
+
+        print( 'c2:' , c2.shape )
+
         c3 = self.layer2(c2)  
         c4 = self.layer3(c3)  
         c5 = self.layer4(c4)  
@@ -153,7 +172,7 @@ def test():
 
 
 ### check for so2 equivarience
-so2_gspace = 32
+so2_gspace = 4
 gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
 
 ### 3 copies of the trivial rep: input images are 3 color channels
