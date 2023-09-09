@@ -7,11 +7,16 @@ from torch.autograd import Variable
 from bottleneck import Equ_Bottleneck
 from eqv_fpn import eqv_FPN101
 
+### to do:
+### needs to accept varible input shape
 
 class FPN_predictor(nn.Module):
 	"""docstring for SO(2) equivarient prediction with FPN head"""
 	def __init__(self, so2_gspace, num_classes):
 		super( FPN_predictor, self).__init__()
+
+		### loss function
+		self.x_loss = nn.CrossEntropyLoss()
 
 		self.num_classes = num_classes
 		self.so2_gspace = so2_gspace
@@ -29,52 +34,52 @@ class FPN_predictor(nn.Module):
 
 		### zero-th convolutional layer: regular --> regular
 		self.conv_zero = e2cnn.nn.R2Conv( rho_input , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_zero = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_zero = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_zero = e2cnn.nn.ReLU( rho_output )
 
 		### zero-th convolutional layer: regular --> regular
 		self.conv_zero_a = e2cnn.nn.R2Conv( rho_output , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_zero_a = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_zero_a = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_zero_a = e2cnn.nn.ReLU( rho_output )
 
 		### zero-th convolutional layer: regular --> regular
 		self.conv_zero_b = e2cnn.nn.R2Conv( rho_output , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_zero_b = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_zero_b = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_zero_b = e2cnn.nn.ReLU( rho_output )
 
 		### zero-th convolutional layer: regular --> regular
 		self.conv_zero_c = e2cnn.nn.R2Conv( rho_output , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_zero_c = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_zero_c = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_zero_c = e2cnn.nn.ReLU( rho_output )
 
 		### first-th convolutional layer: regular --> regular
 		self.conv_one = e2cnn.nn.R2Conv( rho_input , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_one = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_one = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_one = e2cnn.nn.ReLU( rho_output )
 
 		### first-th convolutional layer: regular --> regular
 		self.conv_one_a = e2cnn.nn.R2Conv( rho_output , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_one_a = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_one_a = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_one_a = e2cnn.nn.ReLU( rho_output )
 
 		### first-th convolutional layer: regular --> regular
 		self.conv_one_b = e2cnn.nn.R2Conv( rho_output , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_one_b = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_one_b = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_one_b = e2cnn.nn.ReLU( rho_output )
 
 		### second-th convolutional layer: regular --> regular
 		self.conv_two = e2cnn.nn.R2Conv( rho_input , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_two = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_two = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_two = e2cnn.nn.ReLU( rho_output )
 
 		### second-th convolutional layer: regular --> regular
 		self.conv_two_a = e2cnn.nn.R2Conv( rho_output , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_two_a = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_two_a = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_two_a = e2cnn.nn.ReLU( rho_output )
 
 		### third convolutional layer: regular --> regular
 		self.conv_three = e2cnn.nn.R2Conv( rho_input , rho_output , kernel_size=7, stride=2, padding=3, bias=False )
-		self.bn_three = e2cnn.nn.GNormBatchNorm( rho_output ) 
+		self.bn_three = e2cnn.nn.InnerBatchNorm( rho_output ) 
 		self.relu_three = e2cnn.nn.ReLU( rho_output )
 
 		### max_pool layers:
@@ -104,15 +109,18 @@ class FPN_predictor(nn.Module):
 		self.linear_final = nn.Linear( final_in_features, final_out_features, bias=True, device=None, dtype=None)
 
 
-
 	def forward(self,x):
 
 		### SO(2)-Equivarient FPN
 		y0, y1, y2, y3 = self.fpn(x)
 
 		### zeroth level
-		z0 = self.relu_zero( self.conv_zero(y0)  ) ### [b,512, 32,32  ]
-		z0_a = self.relu_zero_a( self.conv_zero_a(z0) ) ### [b,512, 16, 16  ]
+		z0 = self.bn_zero( self.conv_zero(y0)  ) ### [b,512, 32,32  ]
+		z0 = self.relu_zero( z0 )
+
+		z0_a = self.bn_zero_a( self.conv_zero_a(z0) ) ### [b,512, 16, 16  ]
+		z0_a = self.relu_zero_a( z0_a )
+
 		z0_b = self.relu_zero_b( self.conv_zero_b(z0_a) ) ### [b,512, 8, 8  ]
 		z0_c = self.relu_zero_c( self.conv_zero_b(z0_b) ) ### [b,512, 4, 4  ]
 
@@ -140,14 +148,8 @@ class FPN_predictor(nn.Module):
 		w2 = self.dropout_2( self.linear_2( w2 ) )
 		w3 = self.dropout_3( self.linear_3( w3 ) )
 		
-
-		print(w0.shape,w1.shape,w2.shape,w3.shape)
 		### concat and a final linear layer:
 		c = torch.cat( (w0,w1,w2,w3) , 1 )
-
-		print( 'c shape:', c.shape )
-
-
 		outputs = self.linear_final( c )
 
 		### softmax
@@ -155,7 +157,12 @@ class FPN_predictor(nn.Module):
 
 		return outputs
 
+	def compute_loss(self, x, target ):
 
+		x = self.forward( x )
+		loss = self.x_loss( x , target )
+
+		return loss, 1
 
 
 if __name__ == "__main__":
@@ -166,14 +173,13 @@ if __name__ == "__main__":
 	batch_size = 4
 
 	x = torch.rand( batch_size , 3 , 256 , 256 )
+	labels = torch.randint( num_classes , (batch_size, ) )
 
 	f = FPN_predictor( so2_gspace, num_classes )
 
-	### unchanged y-values:
-	y = f( x )
+	loss , acc =	f.compute_loss( x , labels )	
 
-	print('final outputs')
-	print( y.shape )
+	print(loss)
 	quit()
 
 	### check for so2-invarience of outputs:

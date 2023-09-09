@@ -1,78 +1,79 @@
 import torch
 import torchvision
 
+### for debugging
+class placeholder_dataset(torch.utils.data.Dataset):
+    def __init__(self, ):
+
+        self.num_classes = 10 ### number of "classes"
+        self.data = {
+            'img' : torch.rand( 100, 3, 256, 256 ) ,
+            'label' : torch.randint( self.num_classes , (100,) ) , } ### "data"
+        self.class_names = ('bathtub', 'bed', 'chair', 'desk', 'dresser', 'monitor', 'night_stand', 'sofa', 'table', 'toilet')
+
+    def __getitem__(self, index):
+        img = self.data['img'][index].to(torch.float32) / 255.
+
+        if img.shape[0] != 3:
+            img = img.expand(3,-1,-1)
+
+        class_index = self.data['label'][index]
+
+        return dict(img=img, label=class_index )
+
+    @property
+    def img_shape(self):
+        return (3, 256, 256)
+
+    def __len__(self):
+        return len(self.data['img'])
+
+
 
 def create_dataloaders(args):
 
-	### image dataset
-	imagenet_data = torchvision.datasets.ImageNet('/scratch/howell.o/imagenet_root/')
 
-	train_size = int(0.8 * len(full_dataset))
-	test_size = len(full_dataset) - train_size
-	train_set, test_set = torch.utils.data.random_split(full_dataset, [train_size, test_size])
+	if args.dataset_name=='imagenet':
 
-	args.img_shape = train_set.img_shape
-    args.num_classes = train_set.num_classes
-    args.class_names = train_set.class_names
+		### image dataset
+		dataset = torchvision.datasets.ImageNet('data/imagenet')
 
-    print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
+		train_size = int(0.8 * len(dataset))
+		test_size = len(dataset) - train_size
+		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
 
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,  shuffle=True, num_workers=args.num_workers, drop_last=True)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True)
+		args.img_shape = train_set.img_shape
+		args.num_classes = train_set.num_classes
 
+		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
 
-    return train_loader, test_loader, args
+		train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,  shuffle=True, num_workers=args.num_workers, drop_last=True)
+		test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True)
 
-
-
-
-if __name__ == "__main__":
-
-	
-	so2_gspace = 4
-	num_classes = 64
-	batch_size = 4
-
-	x = torch.rand( batch_size , 3 , 256 , 256 )
-
-	f = FPN_predictor( so2_gspace, num_classes )
-
-	### unchanged y-values:
-	y = f( x )
-
-	print( y[0].shape , y[1].shape, y[2].shape , y[3].shape )
-	quit()
-
-	### check for so2-invarience of outputs:
-	for g in so2.elements:
-
-		x_rot = x.transform(g)
-
-		### new inputs
-		y_rot = f( x_rot.tensor )
-
-		# ### meausre the differences:
-		z0 = y[0].transform(g)
-		z1 = y[1].transform(g)
-		z2 = y[2].transform(g)
-		z3 = y[3].transform(g)
+		return train_loader , test_loader , args
 
 
-		### mesure differences
-		d0 = z0.tensor - y_rot[0].tensor
-		d1 = z1.tensor - y_rot[1].tensor
-		d2 = z2.tensor - y_rot[2].tensor
-		d3 = z3.tensor - y_rot[3].tensor
+	if args.dataset_name=='placeholder':
 
-		### take the norm
-		print()
-		print("group element:" , g)
-		print( 'zero percentage error:' ,  torch.norm(d0)/torch.norm( z0.tensor ) ) 
-		print( 'one percentage error:' ,  torch.norm(d1)/torch.norm( z1.tensor ) ) 
-		print( 'two percentage error:' ,  torch.norm(d2)/torch.norm( z2.tensor ) ) 
-		print( 'three percentage error:' ,  torch.norm(d3)/torch.norm( z3.tensor ) ) 
-		print()
+		### image dataset
+		dataset = placeholder_dataset()
 
-	### check types of outputs
-	###print( y_rot[0].type , y_rot[1].type , y_rot[2].type , y_rot[3].type )
+		args.img_shape = dataset.img_shape
+		args.num_classes = dataset.num_classes
+
+		train_size = int(0.8 * len(dataset))
+		test_size = len(dataset) - train_size
+		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
+
+		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
+
+		train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,  shuffle=True, num_workers=args.num_workers, drop_last=True)
+		test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True)
+
+		return train_loader , test_loader , args
+
+
+
+
+
 

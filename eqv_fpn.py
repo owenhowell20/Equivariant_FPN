@@ -1,7 +1,4 @@
-'''FPN in PyTorch.
-
-See the paper "Feature Pyramid Networks for Object Detection" for more details.
-'''
+'''Equivarient Feature Pyramid Networks in PyTorch. '''
 
 import torch
 import torch.nn as nn
@@ -11,7 +8,7 @@ from torch.autograd import Variable
 from bottleneck import Equ_Bottleneck
 
 
-### so2-equivarient feature pyrimid network
+### SO(2)-equivarient feature pyrimid network
 class eqv_FPN(nn.Module):
     def __init__(self, so2_gspace, block, num_blocks):
         super(eqv_FPN, self).__init__()
@@ -31,7 +28,7 @@ class eqv_FPN(nn.Module):
 
         ### first convolutional layer: trivial --> regular
         self.conv_first = e2cnn.nn.R2Conv( self.rho_triv , rho_first , kernel_size=7, stride=2, padding=3, bias=False )
-        self.bn_first = e2cnn.nn.GNormBatchNorm( rho_first ) 
+        self.bn_first = e2cnn.nn.InnerBatchNorm( rho_first ) 
         self.relu_first = e2cnn.nn.ReLU( rho_first )
 
         ### Norm max pool over spatial extent: this should be checked
@@ -110,6 +107,7 @@ class eqv_FPN(nn.Module):
 
         ### first conv
         c1 = self.conv_first(x)
+        c1 = self.bn_first(c1)
         c1 = self.relu_first( c1 )
 
         ### max pool over spatial dimensions 
