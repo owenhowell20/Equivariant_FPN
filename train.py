@@ -12,7 +12,12 @@ import torch
 import warnings
 from datasets import create_dataloaders
 from model import FPN_predictor
+
 warnings.filterwarnings('ignore', category=UserWarning)
+
+### TO DO: 
+### 1. make accuracy mesure output for each class
+### 2. add all batch norms
 
 ### create model
 def create_model(args):
@@ -20,7 +25,8 @@ def create_model(args):
     model = FPN_predictor( so2_gspace=args.so2_gspace, num_classes=args.num_classes ).to(args.device)
 
     num_params = sum( p.numel() for p in model.parameters() if p.requires_grad )
-    print(f'total number of params: {num_params/1e6:.3f}M')
+    #print( f'total number of params:{num_params/1e6:.3f}M' )
+    print( 'total number of params:' , num_params )
     model.train()
 
     return model

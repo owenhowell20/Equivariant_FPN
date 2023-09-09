@@ -47,9 +47,13 @@ class eqv_FPN(nn.Module):
        
         ### Smooth layers: 3x convs regular 256 --> regular 256
         rho_reg = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
-        self.conv1 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1) ###
+        self.conv1 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1) 
         self.conv2 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1)
         self.conv3 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1)
+    
+        self.bn_smooth = e2cnn.nn.InnerBatchNorm( rho_reg ) 
+        self.relu_smooth = e2cnn.nn.ReLU( rho_reg )
+
 
         ### Lateral layers, these are all convs of increasing powers of 2
         rho_lat_a = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(1024/so2_gspace) )
@@ -106,8 +110,7 @@ class eqv_FPN(nn.Module):
         x = e2cnn.nn.GeometricTensor( x , self.rho_triv ) ### [: , 3 , : ,:]
 
         ### first conv
-        c1 = self.conv_first(x)
-        c1 = self.bn_first(c1)
+        c1 = self.bn_first( self.conv_first(x) )
         c1 = self.relu_first( c1 )
 
         ### max pool over spatial dimensions 
@@ -130,10 +133,10 @@ class eqv_FPN(nn.Module):
         a2 = self.latlayer3(c2) 
         p2 = self._upsample_add( p3, a2 )
         
-        ### Final convolution: all outputs are same dimension
-        p4 = self.conv1(p4)
-        p3 = self.conv2(p3)
-        p2 = self.conv3(p2)
+        ### Final convolution: all outputs are same dimension and same feature type
+        p4 = self.relu_smooth( self.bn_smooth( self.conv1(p4) ) )
+        p3 = self.relu_smooth( self.bn_smooth( self.conv2(p3) ) )
+        p2 = self.relu_smooth( self.bn_smooth( self.conv3(p2) ) )
 
         return p2, p3, p4, p5
 

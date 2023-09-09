@@ -157,10 +157,10 @@ class FPN_predictor(nn.Module):
 
 		return outputs
 
-	def compute_loss(self, x, target ):
+	def compute_loss(self, img, label ):
 
-		x = self.forward( x )
-		loss = self.x_loss( x , target )
+		x = self.forward( img )
+		loss = self.x_loss( x , label )
 
 		return loss, 1
 
@@ -173,35 +173,28 @@ if __name__ == "__main__":
 	batch_size = 4
 
 	x = torch.rand( batch_size , 3 , 256 , 256 )
+	rho_triv = 1 
+
 	labels = torch.randint( num_classes , (batch_size, ) )
 
 	f = FPN_predictor( so2_gspace, num_classes )
 
-	loss , acc =	f.compute_loss( x , labels )	
+	loss , acc = f.compute_loss( x , labels )	
 
-	print(loss)
-	quit()
+
+	y = f( x.tensor )
 
 	### check for so2-invarience of outputs:
 	for g in so2.elements:
 
 		x_rot = x.transform(g)
 
-		### new inputs
+		### new predictions
 		y_rot = f( x_rot.tensor )
 
-		# ### meausre the differences:
-		z0 = y[0].transform(g)
-		z1 = y[1].transform(g)
-		z2 = y[2].transform(g)
-		z3 = y[3].transform(g)
-
-
 		### mesure differences
-		d0 = z0.tensor - y_rot[0].tensor
-		d1 = z1.tensor - y_rot[1].tensor
-		d2 = z2.tensor - y_rot[2].tensor
-		d3 = z3.tensor - y_rot[3].tensor
+		d0 = z0.tensor - y_rot
+		
 
 		### take the norm
 		print()
