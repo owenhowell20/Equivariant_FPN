@@ -4,7 +4,7 @@ This is a small repository that contains SO(2)-equivarient versions of some comm
 
 Current Model Classes Implemented:
 
-1. Equivariant Feature Pyrimid Network
+1. Equivariant Feature Pyramid Network
 2. Equivariant ResNet
 3. Equivariant Mask-RCNN
 4. Equivarient Transformer

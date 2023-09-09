@@ -11,10 +11,6 @@ from torch.autograd import Variable
 from bottleneck import Equ_Bottleneck
 
 
-### to do:
-### 1. Train on a real dataset, i.e. build pipeline
-
-
 ### so2-equivarient feature pyrimid network
 class eqv_FPN(nn.Module):
     def __init__(self, so2_gspace, block, num_blocks):
@@ -47,7 +43,6 @@ class eqv_FPN(nn.Module):
         self.layer3 = self._make_layer( block, so2_gspace , 256, num_blocks[2], stride=2 ) ### in_planes=256, out_planes = 4*num_blocks[2] 
         self.layer4 = self._make_layer( block, so2_gspace , 512, num_blocks[3], stride=2 ) ### in_planes=512, out_planes = 4*num_blocks[3] 
  
-
         ### Top layer: convs a 2048 reg --> 256 reg
         rho_top_in = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(2048/so2_gspace) )
         rho_top_out = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
@@ -117,14 +112,9 @@ class eqv_FPN(nn.Module):
         c1 = self.conv_first(x)
         c1 = self.relu_first( c1 )
 
-
-
-
         ### max pool over spatial dimensions 
         c1 = self.max_pool2d_layer( c1 ) 
     
-       
-
         ### now up layers
         c2 = self.layer1(c1)
         c3 = self.layer2(c2)  
@@ -166,52 +156,53 @@ def test():
 
 if __name__ == "__main__":
 
-	### check for so2 equivarience
-	so2_gspace = 4
-	gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
+    ### check for so2 equivarience
+    so2_gspace = 8
+    gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
 
-	### 3 copies of the trivial rep: input images are 3 color channels
-	rho_triv = e2cnn.nn.FieldType( gspace , [gspace.trivial_repr]*3 )
-	so2 = gspace.fibergroup
+    ### 3 copies of the trivial rep: input images are 3 color channels
+    rho_triv = e2cnn.nn.FieldType( gspace , [gspace.trivial_repr]*3 )
+    so2 = gspace.fibergroup
 
-	x = torch.rand( 10 , 3 , 256 , 256 )
-	x = e2cnn.nn.GeometricTensor( x , rho_triv )
+    x = torch.rand( 10 , 3 , 256 , 256 )
+    x = e2cnn.nn.GeometricTensor( x , rho_triv )
 
-	f = eqv_FPN101( so2_gspace )
+    f = eqv_FPN101( so2_gspace )
 
-	### unchanged y-values:
-	y = f( x.tensor )
+    ### unchanged y-values:
+    y = f( x.tensor )
 
-	for g in so2.elements:
+    ### check that each extracted feature has so2 equivarience
+    for g in so2.elements:
 
-	    x_rot = x.transform(g)
+        x_rot = x.transform(g)
 
-	    ### new inputs
-	    y_rot = f( x_rot.tensor )
+        ### new inputs
+        y_rot = f( x_rot.tensor )
 
-	    # ### meausre the differences:
-	    z0 = y[0].transform(g)
-	    z1 = y[1].transform(g)
-	    z2 = y[2].transform(g)
-	    z3 = y[3].transform(g)
+        # ### meausre the differences:
+        z0 = y[0].transform(g)
+        z1 = y[1].transform(g)
+        z2 = y[2].transform(g)
+        z3 = y[3].transform(g)
 
 
-	    ### mesure differences
-	    d0 = z0.tensor - y_rot[0].tensor
-	    d1 = z1.tensor - y_rot[1].tensor
-	    d2 = z2.tensor - y_rot[2].tensor
-	    d3 = z3.tensor - y_rot[3].tensor
+        ### mesure differences
+        d0 = z0.tensor - y_rot[0].tensor
+        d1 = z1.tensor - y_rot[1].tensor
+        d2 = z2.tensor - y_rot[2].tensor
+        d3 = z3.tensor - y_rot[3].tensor
 
-	    ### take the norm
-	    print()
-	    print("group element:" , g)
-	    print( 'zero percentage error:' ,  torch.norm(d0)/torch.norm( z0.tensor ) ) 
-	    print( 'one percentage error:' ,  torch.norm(d1)/torch.norm( z1.tensor ) ) 
-	    print( 'two percentage error:' ,  torch.norm(d2)/torch.norm( z2.tensor ) ) 
-	    print( 'three percentage error:' ,  torch.norm(d3)/torch.norm( z3.tensor ) ) 
-	    print()
+        ### take the norm
+        print()
+        print("group element:" , g)
+        print( 'zero percentage error:' ,  torch.norm(d0)/torch.norm( z0.tensor ) ) 
+        print( 'one percentage error:' ,  torch.norm(d1)/torch.norm( z1.tensor ) ) 
+        print( 'two percentage error:' ,  torch.norm(d2)/torch.norm( z2.tensor ) ) 
+        print( 'three percentage error:' ,  torch.norm(d3)/torch.norm( z3.tensor ) ) 
+        print()
 
-	    ### check types of outputs
-	    ###print( y_rot[0].type , y_rot[1].type , y_rot[2].type , y_rot[3].type )
+        ### check types of outputs
+        print( y_rot[0].type , y_rot[1].type , y_rot[2].type , y_rot[3].type )
 
 

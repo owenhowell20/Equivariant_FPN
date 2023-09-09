@@ -76,15 +76,9 @@ class Equ_Bottleneck( nn.Module ):
         ### conv/bnorm layer 3
         #out = self.bn3( self.conv3(out) )
         out = self.conv3(out) 
-        
-        ### shortcut
-        passed = self.shortcut_conv( x ) 
-
-        #print('bottleneck output:')
-        #print( out.shape )
-        
+                
         ### add signals, they both transform in same way
-        out = out + passed
+        out = out +  self.shortcut_conv( x ) 
 
         ### final relu
         out = self.relu_out(out)
