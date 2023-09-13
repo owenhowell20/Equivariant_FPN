@@ -51,7 +51,9 @@ class eqv_FPN(nn.Module):
         self.conv2 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1)
         self.conv3 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1)
     
-        self.bn_smooth = e2cnn.nn.InnerBatchNorm( rho_reg ) 
+        self.bn_smooth1 = e2cnn.nn.InnerBatchNorm( rho_reg ) 
+        self.bn_smooth2 = e2cnn.nn.InnerBatchNorm( rho_reg ) 
+        self.bn_smooth3 = e2cnn.nn.InnerBatchNorm( rho_reg ) 
         self.relu_smooth = e2cnn.nn.ReLU( rho_reg )
 
 
@@ -67,8 +69,13 @@ class eqv_FPN(nn.Module):
 
         ### lateral convolutions
         self.latlayer1 = e2cnn.nn.R2Conv( rho_lat_a , rho_lat_b , kernel_size=1, stride=1, padding=0)
+        self.latbn1 = e2cnn.nn.InnerBatchNorm( rho_lat_b ) 
+
         self.latlayer2 = e2cnn.nn.R2Conv( rho_lat_c , rho_lat_d , kernel_size=1, stride=1, padding=0)
+        self.latbn2 = e2cnn.nn.InnerBatchNorm( rho_lat_d ) 
+
         self.latlayer3 = e2cnn.nn.R2Conv( rho_lat_e, rho_lat_f , kernel_size=1, stride=1, padding=0)
+        self.latbn3 = e2cnn.nn.InnerBatchNorm( rho_lat_f ) 
 
 
     ###make layer function: block should be an NN with same input and 
@@ -93,7 +100,7 @@ class eqv_FPN(nn.Module):
         #_,_,a,b = x.shape
         #_,_,H,W = y.size()
 
-        scale_factor = 2 ### constant 2 scale factor
+        scale_factor = 2 ### constant 2 upscale factor
 
         ### mesure the upsampling error
         #self.upsample = e2cnn.nn.R2Upsampling(in_type, scale_factor=None, size=(H,W), mode='bilinear')
@@ -126,17 +133,17 @@ class eqv_FPN(nn.Module):
         p5 = self.toplayer( c5 ) 
 
         ### Top-down layers
-        a4 = self.latlayer1(c4)
+        a4 = self.latbn1(  self.latlayer1(c4) )
         p4 = self._upsample_add( p5, a4 )
-        a3 = self.latlayer2(c3) 
+        a3 = self.latbn2( self.latlayer2(c3)  )
         p3 = self._upsample_add( p4, a3 ) 
-        a2 = self.latlayer3(c2) 
+        a2 = self.latbn3( self.latlayer3(c2)  )
         p2 = self._upsample_add( p3, a2 )
         
         ### Final convolution: all outputs are same dimension and same feature type
-        p4 = self.relu_smooth( self.bn_smooth( self.conv1(p4) ) )
-        p3 = self.relu_smooth( self.bn_smooth( self.conv2(p3) ) )
-        p2 = self.relu_smooth( self.bn_smooth( self.conv3(p2) ) )
+        p4 = self.relu_smooth( self.bn_smooth1( self.conv1(p4) ) )
+        p3 = self.relu_smooth( self.bn_smooth2( self.conv2(p3) ) )
+        p2 = self.relu_smooth( self.bn_smooth3( self.conv3(p2) ) )
 
         return p2, p3, p4, p5
 
@@ -149,7 +156,7 @@ def eqv_FPN101(so2_gspace):
 
 def test():
     net = eqv_FPN101()
-    fms = net(Variable(torch.randn(1,3,600,900)))
+    fms = net( Variable(torch.randn(1,3,600,900)) )
     for fm in fms:
         print(fm.size())
 

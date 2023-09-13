@@ -49,8 +49,12 @@ class Equ_Bottleneck( nn.Module ):
 
         ### shortcut layer
         if stride != 1 or in_planes != self.expansion*planes:
-            self.shortcut_conv =  e2cnn.nn.R2Conv( rho_in ,  rho_out ,  kernel_size=3, stride=stride, padding=1, bias=False ) 
-            self.shortcut_batch = e2cnn.nn.InnerBatchNorm( rho_out )
+
+            self.shortcut_conv = nn.Sequential(   
+                e2cnn.nn.R2Conv( rho_in ,  rho_out ,  kernel_size=3, stride=stride, padding=1, bias=False ) , 
+                e2cnn.nn.InnerBatchNorm( rho_out ) ,
+                e2cnn.nn.ReLU( rho_out , inplace=False)
+                )
         else:
             self.shortcut_conv = e2cnn.nn.IdentityModule( rho_out )
 

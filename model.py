@@ -121,20 +121,20 @@ class FPN_predictor(nn.Module):
 		z0_a = self.bn_zero_a( self.conv_zero_a(z0) ) ### [b,512, 16, 16  ]
 		z0_a = self.relu_zero_a( z0_a )
 
-		z0_b = self.relu_zero_b( self.conv_zero_b(z0_a) ) ### [b,512, 8, 8  ]
-		z0_c = self.relu_zero_c( self.conv_zero_b(z0_b) ) ### [b,512, 4, 4  ]
+		z0_b = self.relu_zero_b( self.bn_zero_b( self.conv_zero_b(z0_a) ) ) ### [b,512, 8, 8  ]
+		z0_c = self.relu_zero_c( self.bn_zero_c( self.conv_zero_b(z0_b) ) )### [b,512, 4, 4  ]
 
 		### first level
-		z1 = self.relu_one( self.conv_one(y1)  ) ### [b,512,  16, 16 ]
-		z1_a = self.relu_one_a( self.conv_one_a(z1) ) ### [b,512,8,8]
-		z1_b = self.relu_one_b( self.conv_one_b(z1_a) ) ### [b,512,4,4]
+		z1 = self.relu_one( self.bn_one( self.conv_one(y1) )  ) ### [b,512,  16, 16 ]
+		z1_a = self.relu_one_a( self.bn_one_a(  self.conv_one_a(z1) ) )### [b,512,8,8]
+		z1_b = self.relu_one_b( self.bn_one_b( self.conv_one_b(z1_a) ) )### [b,512,4,4]
 
 		### second level
-		z2 = self.relu_two( self.conv_two(y2) )  ### [b,512,  8,8  ]
-		z2_a = self.relu_two_a(  self.conv_two_a( z2 ) ) ### [b,512,  4,4  ]
+		z2 = self.relu_two( self.bn_two( self.conv_two(y2) )  ) ### [b,512,  8,8  ]
+		z2_a = self.relu_two_a(  self.bn_three( self.conv_two_a( z2 ) ) ) ### [b,512,  4,4  ]
 
 		### third level
-		z3 = self.relu_three( self.conv_three(y3) ) ### [b,512, 4,4 ]
+		z3 = self.relu_three( self.bn_three(  self.conv_three(y3) ) ) ### [b,512, 4,4 ]
 
 		### maxpool layers
 		w0 = torch.squeeze( self.max_pool2d_layer_0( z0_c.tensor ) )

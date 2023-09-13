@@ -13,20 +13,26 @@ import warnings
 from datasets import create_dataloaders
 from model import FPN_predictor
 
-warnings.filterwarnings('ignore', category=UserWarning)
+### check that cuda is avalible:
+print()
+print( "Cuda is available:" , torch.cuda.is_available() )
+print()
+
+warnings.filterwarnings( 'ignore', category=UserWarning )
 
 ### TO DO: 
 ### 1. make accuracy mesure output for each class
-### 2. add all batch norms
+### 2. transforms on all datasets
+### 3. fix dataloaders
 
-### create model
+
+### create equivarient FPN model
 def create_model(args):
 
     model = FPN_predictor( so2_gspace=args.so2_gspace, num_classes=args.num_classes ).to(args.device)
 
     num_params = sum( p.numel() for p in model.parameters() if p.requires_grad )
-    #print( f'total number of params:{num_params/1e6:.3f}M' )
-    print( 'total number of params:' , num_params )
+    print( 'total number of model parameters:' , num_params )
     model.train()
 
     return model
@@ -39,10 +45,10 @@ def main(args):
     if args.device != 'cpu':
         torch.cuda.manual_seed(args.seed)
 
-    fname = f"{args.dataset_name}_{args.encoder.replace('_','-')}_seed{args.seed}"
+    fname = 'test' ###f"_{args.dataset_name}_{args.encoder.replace('_','-')}_seed{args.seed}"
 
-    if args.desc != '':
-        fname += f"_{args.desc}"
+    #if args.desc != '':
+    #    fname += f"_{args.desc}"
     args.fdir = os.path.join(args.results_dir, fname)
   
     if not os.path.exists(args.fdir):
@@ -134,18 +140,14 @@ def main(args):
         lr_scheduler.step()
 
         ### checkpointing
-        torch.save({'epoch': epoch,
+        torch.save( {'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'lr_scheduler_state_dict': lr_scheduler.state_dict(),
                     'done': False,
-                   }, os.path.join(args.fdir, "checkpoint.pt"))
+                   }, os.path.join(args.fdir, "checkpoint.pt") )
 
-        log_str = f"Epoch {epoch}/{args.num_epochs} | " \
-                  + f"LOSS={train_loss:.4f}<{test_loss:.4f}> " \
-                  + f"ROT ERR={np.degrees(test_acc_median):.2f}° | " \
-                  + f"time={time.perf_counter() - time_before_epoch:.1f}s | " \
-                  + f"lr={lr_scheduler.get_last_lr()[0]:.1e}"
+        log_str = 'test_2' ###f"Epoch {epoch}/{args.num_epochs} | " + f"LOSS={train_loss:.4f}<{test_loss:.4f}> " + f"ROT ERR={np.degrees(test_acc_median):.2f}° | " + f"time={time.perf_counter() - time_before_epoch:.1f}s | " + f"lr={lr_scheduler.get_last_lr()[0]:.1e}"
         logger.info(log_str)
         time_before_epoch = time.perf_counter()
 
@@ -157,9 +159,9 @@ if __name__ == "__main__":
 	parser.add_argument('--device', type=str, default='cuda')
 	parser.add_argument('--desc', type=str, default='')
 
-	### model params
-	parser.add_argument('--so2_gspace', type=int, default=4, help='Discritization of SO(2) Group')
-	parser.add_argument('--encoder', type=str, default='fpn', help='Head')
+	### model architecture params:
+	parser.add_argument('--so2_gspace', type=int, default=4, help='Discretization of SO(2) Group')
+	parser.add_argument('--encoder', type=str, default='eqv_fpn', choices=[ 'fpn', 'eqv_fpn' ] , help='Choice of Network Head')
 
 	### training params:
 	parser.add_argument('--num_epochs', type=int, default=100)
@@ -171,12 +173,13 @@ if __name__ == "__main__":
 	parser.add_argument('--use_nesterov', type=int, default=1)
 	parser.add_argument('--weight_decay', type=float, default=0)
 
-	parser.add_argument('--dataset_path', type=str, default='./datasets')
+
+    ### dataset and results info
+	parser.add_argument('--dataset_path', type=str, default='./data')
 	parser.add_argument('--results_dir', type=str, default='results')
+	parser.add_argument('--dataset_name', type=str, default='coco', choices=['imagenet',  'caltech' , 'coco' , 'placeholder' ] )
 
-	parser.add_argument('--dataset_name', type=str, default='placeholder', choices=['imagenet', 'placeholder' ] )
-
-
+    ### number of workers used
 	parser.add_argument('--num_workers', type=int, default=4, help='workers used by dataloader')
 	args = parser.parse_args()
 

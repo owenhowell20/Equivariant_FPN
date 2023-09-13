@@ -1,23 +1,29 @@
 import torch
 import torchvision
-
-
+import torchvision.transforms as trans
 
 
 def create_dataloaders(args):
 
 
-	if args.dataset_name=='imagenet':
+	if args.dataset_name=='coco':
 
-		### image dataset
-		dataset = torchvision.datasets.ImageNet( args.dataset_path )
+		### take random crop of images
+		standard_transform = trans.Compose([
+		trans.RandomResizedCrop(size=(256, 256), antialias=True) , 
+		trans.ToTensor() ,
+		])
+
+		annFile = args.dataset_path + '/annotations'
+
+		coco = torchvision.datasets.CocoDetection(root=args.dataset_path, annFile=annFile, transform= standard_transform)
 
 		train_size = int(0.8 * len(dataset))
 		test_size = len(dataset) - train_size
 		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
 
-		args.img_shape = train_set.img_shape
-		args.num_classes = train_set.num_classes
+		args.img_shape = 256 #train_set.img_shape[1]
+		args.num_classes = 80 #train_set.num_classes
 
 		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
 
@@ -25,6 +31,56 @@ def create_dataloaders(args):
 		test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True)
 
 		return train_loader , test_loader , args
+
+	if args.dataset_name=='caltech':
+
+		standard_transform = trans.Compose( [
+		trans.RandomResizedCrop(size=(256, 256), antialias=True) , 
+		trans.ToTensor(),
+		] )
+
+		### image dataset
+		dataset = torchvision.datasets.Caltech101(root=args.dataset_path, target_type= 'category', transform=standard_transform , download=True )
+
+		train_size = int(0.8 * len(dataset))
+		test_size = len(dataset) - train_size
+		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
+
+		args.img_shape = 256 
+		args.num_classes = 101
+
+		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
+
+		train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,  shuffle=True, num_workers=args.num_workers, drop_last=True)
+		test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True)
+
+		return train_loader , test_loader , args
+
+
+	if args.dataset_name=='imagenet':
+
+		standard_transform = trans.Compose( [
+		trans.RandomResizedCrop(size=(256, 256), antialias=True) , 
+		trans.ToTensor(),
+		] )
+
+		### image dataset
+		dataset = torchvision.datasets.ImageNet( root=args.dataset_path , transform=standard_transform )
+
+		train_size = int(0.8 * len(dataset))
+		test_size = len(dataset) - train_size
+		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
+
+		args.img_shape = 256 ###train_set.img_shape
+		args.num_classes = 1000 ###train_set.num_classes
+
+		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
+
+		train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,  shuffle=True, num_workers=args.num_workers, drop_last=True)
+		test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True)
+
+		return train_loader , test_loader , args
+
 
 
 	if args.dataset_name=='placeholder':
@@ -49,7 +105,7 @@ def create_dataloaders(args):
 
 
 
-### for debugging
+### for model archeteture debugging only
 class placeholder_dataset(torch.utils.data.Dataset):
     def __init__(self, ):
 
