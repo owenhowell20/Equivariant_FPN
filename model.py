@@ -4,8 +4,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import e2cnn
 from torch.autograd import Variable
-from src.bottleneck import Equ_Bottleneck
-from src.eqv_fpn import eqv_FPN101
+
+
+from bottleneck import Equ_Bottleneck
+from eqv_fpn import eqv_FPN101
 
 ### To Do:
 ### needs to accept varible input shape
@@ -160,29 +162,33 @@ class FPN_predictor(nn.Module):
 	def compute_loss(self, images, labels ):
 
 		x = self.forward( images )
-		loss = self.x_loss( x , labels )
+		loss = nn.CrossEntropyLoss()( x , labels )
 
-		return loss, 1
+		preds = torch.argmax(x, 1) ### prediction indices, size: [batch size]
+
+		num_correct = torch.sum( torch.eq( preds , labels ) )
+
+		return loss, num_correct
 
 
 if __name__ == "__main__":
 
+	import numpy as np
 	
 	so2_gspace = 4
-	num_classes = 64
-	batch_size = 4
+	num_classes = 3
+	batch_size = 10
 
-	x = torch.rand( batch_size , 3 , 256 , 256 )
-	rho_triv = 1 
-
+	images = torch.rand( batch_size , 3 , 256 , 256 )
 	labels = torch.randint( num_classes , (batch_size, ) )
 
+	### model
 	f = FPN_predictor( so2_gspace, num_classes )
+	loss , num_correct = f.compute_loss( images , labels )	
 
-	loss , acc = f.compute_loss( x , labels )	
-
-
-	y = f( x.tensor )
+	print("Percentage correct:" , per_correct)
+	print(val/batch_size)
+	quit()
 
 	### check for so2-invarience of outputs:
 	for g in so2.elements:

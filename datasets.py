@@ -14,7 +14,7 @@ def create_dataloaders(args):
 		] )
 
 		### image dataset
-		dataset = torchvision.datasets.Caltech256(root=args.dataset_path, target_type= 'category', transform=standard_transform , download=True )
+		dataset = torchvision.datasets.Caltech256(root=args.dataset_path, transform=standard_transform , download=True )
 
 		train_size = int(0.8 * len(dataset))
 		test_size = len(dataset) - train_size
@@ -97,7 +97,7 @@ def create_dataloaders(args):
 		test_size = len(dataset) - train_size
 		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
 
-		args.img_shape = 256 ###train_set.img_shape
+		args.img_shape = 256
 		args.num_classes = 1000 ###train_set.num_classes
 
 		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )

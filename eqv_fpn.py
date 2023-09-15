@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import e2cnn
 from torch.autograd import Variable
-from src.bottleneck import Equ_Bottleneck
+from bottleneck import Equ_Bottleneck
 
 
 ### SO(2)-equivarient feature pyrimid network
@@ -18,21 +18,21 @@ class eqv_FPN(nn.Module):
 
         #### set the so2 discritization, this should always be a power of 2 that is less than or equal to 64:
         self.so2_gspace = so2_gspace
-        gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
+        gspace = e2cnn.gspaces.Rot2dOnR2( N=so2_gspace, maximum_frequency=None, fibergroup=None )
 
         ### 3 copies of the trivial rep: input images are 3 color channels
         self.rho_triv = e2cnn.nn.FieldType( gspace , [gspace.trivial_repr]*3 )
 
         ### 64 channel regular features
-        rho_first = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(64/so2_gspace) )
+        self.rho_first = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(64/so2_gspace) )
 
         ### first convolutional layer: trivial --> regular
-        self.conv_first = e2cnn.nn.R2Conv( self.rho_triv , rho_first , kernel_size=7, stride=2, padding=3, bias=False )
-        self.bn_first = e2cnn.nn.InnerBatchNorm( rho_first ) 
-        self.relu_first = e2cnn.nn.ReLU( rho_first )
+        self.conv_first = e2cnn.nn.R2Conv( self.rho_triv , self.rho_first , kernel_size=7, stride=2, padding=3, bias=False )
+        self.bn_first = e2cnn.nn.InnerBatchNorm( self.rho_first ) 
+        self.relu_first = e2cnn.nn.ReLU( self.rho_first )
 
         ### Norm max pool over spatial extent: this should be checked
-        self.max_pool2d_layer = e2cnn.nn.NormMaxPool( rho_first , kernel_size=3, stride=2, padding=1 )
+        self.max_pool2d_layer = e2cnn.nn.NormMaxPool( self.rho_first , kernel_size=3, stride=2, padding=1 )
 
         ### Bottom-up layers: so2_gspace, in_planes, planes,  flavor=str,  stride=1 
         self.layer1 = self._make_layer( block, so2_gspace ,  64, num_blocks[0], stride=1 ) ### in_planes=64,  out_planes = 4*num_blocks[0] 
@@ -164,7 +164,7 @@ def test():
 if __name__ == "__main__":
 
     ### check for so2 equivarience
-    so2_gspace = 8
+    so2_gspace = 4
     gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
 
     ### 3 copies of the trivial rep: input images are 3 color channels
@@ -178,6 +178,8 @@ if __name__ == "__main__":
 
     ### unchanged y-values:
     y = f( x.tensor )
+
+    quit()
 
     ### check that each extracted feature has so2 equivarience
     for g in so2.elements:

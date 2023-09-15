@@ -33,7 +33,7 @@ class Equ_Bottleneck( nn.Module ):
 
         ### layer 1: in_planes --> planes
         self.conv1 =  e2cnn.nn.R2Conv( rho_in ,  rho_hidden ,  kernel_size=1 , bias=False )
-        self.bn1 = e2cnn.nn.InnerBatchNorm( rho_in )
+        self.bn1 = e2cnn.nn.InnerBatchNorm( rho_hidden )
         
         ### layer 2: planes --> planes
         self.conv2 =  e2cnn.nn.R2Conv( rho_hidden ,  rho_hidden ,  kernel_size=3, stride=stride, padding=1, bias=False )

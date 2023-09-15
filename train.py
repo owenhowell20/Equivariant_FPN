@@ -11,8 +11,8 @@ import torch.nn.functional as F
 import torch
 import warnings
 
-from src.datasets import create_dataloaders
-from src.model import FPN_predictor
+from datasets import create_dataloaders
+from model import FPN_predictor
 
 ### check that cuda is avalible:
 print()
@@ -90,13 +90,14 @@ def main(args):
         for batch_idx, batch in enumerate(train_loader):
             batch = {k:v.to(args.device) for k,v in batch.items()}
             
-            loss, acc = model.compute_loss(**batch)
+            loss, num_correct = model.compute_loss(**batch)
+            per_correct = num_correct/args.batch_size
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             train_loss += loss.item()
-            train_acc.append(acc)
+            train_acc.append(per_correct)
 
         train_loss /= batch_idx + 1
         train_acc_median = np.median(train_acc)
@@ -109,32 +110,35 @@ def main(args):
         for batch_idx, batch in enumerate(test_loader):
             batch = {k:v.to(args.device) for k,v in batch.items()}
             with torch.no_grad():
-                loss, acc = model.compute_loss(**batch)
+                loss, num_correct = model.compute_loss(**batch)
+                per_correct = num_correct/args.batch_size
 
             test_loss += loss.item()
-            test_acc.append(acc)
-            #test_cls.append(batch['cls'].squeeze(0).cpu().numpy())
+            test_acc.append(per_correct)
 
         model.train()
         test_loss /= batch_idx + 1
         test_acc_median = np.median(test_acc)
 
+        print( "test loss:" , test_loss )
+        print("Test Median Batch Percentage Correct:", test_acc )
+
         per_class_err = {}
-        # test_acc = np.array(test_acc).flatten()
+        test_acc = np.array(test_acc).flatten()
         # test_cls = np.array(test_cls).flatten()
         # for i, cls in enumerate(args.class_names):
         #     per_class_err[cls] = f"{np.degrees(np.median(test_acc[test_cls == i])):.1f}"
 
-        logger.info(str(per_class_err))
+        logger.info( str(per_class_err) )
 
-        data.append(dict(epoch=epoch,
+        data.append( dict(epoch=epoch,
                          time_elapsed=time.perf_counter() - time_before_epoch,
                          train_loss=train_loss,
                          test_loss=test_loss,
                          train_acc_median=train_acc_median,
                          test_acc_median=test_acc_median,
                          lr=optimizer.param_groups[0]['lr'],
-                        ))
+                        ) )
         lr_scheduler.step()
 
         ### checkpointing
@@ -147,11 +151,10 @@ def main(args):
 
         log_str = f"Epoch {epoch}/{args.num_epochs} | " \
                   + f"LOSS={train_loss:.4f}<{test_loss:.4f}> " \
-                  + f"ROT ERR={np.degrees(test_acc_median):.2f}° | " \
+                  + f"Percentage Correct={np.degrees(test_acc_median):.2f} | " \
                   + f"time={time.perf_counter() - time_before_epoch:.1f}s | " \
                   + f"lr={lr_scheduler.get_last_lr()[0]:.1e}"
 
-       
         logger.info(log_str)
         time_before_epoch = time.perf_counter()
 
@@ -186,7 +189,7 @@ if __name__ == "__main__":
     ### dataset and results info
 	parser.add_argument('--dataset_path', type=str, default='./data')
 	parser.add_argument('--results_dir', type=str, default='results')
-	parser.add_argument('--dataset_name', type=str, default='placeholder', choices=['imagenet',  'caltech101', 'caltech256' , 'coco' , 'placeholder' ] )
+	parser.add_argument('--dataset_name', type=str, default='caltech101', choices=['imagenet',  'caltech101', 'caltech256' , 'coco' , 'placeholder' ] )
 
     ### number of workers used
 	parser.add_argument('--num_workers', type=int, default=4, help='workers used by dataloader')
