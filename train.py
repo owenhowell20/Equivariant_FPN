@@ -10,8 +10,9 @@ import numpy as np
 import torch.nn.functional as F
 import torch
 import warnings
-from datasets import create_dataloaders
-from model import FPN_predictor
+
+from src.datasets import create_dataloaders
+from src.model import FPN_predictor
 
 ### check that cuda is avalible:
 print()
@@ -22,8 +23,7 @@ warnings.filterwarnings( 'ignore', category=UserWarning )
 
 ### TO DO: 
 ### 1. make accuracy mesure output for each class
-### 2. transforms on all datasets
-### 3. fix dataloaders
+### 2. fix imagenet dataloader
 
 
 ### create equivarient FPN model
@@ -45,10 +45,9 @@ def main(args):
     if args.device != 'cpu':
         torch.cuda.manual_seed(args.seed)
 
-    fname = 'test' ###f"_{args.dataset_name}_{args.encoder.replace('_','-')}_seed{args.seed}"
-
-    #if args.desc != '':
-    #    fname += f"_{args.desc}"
+    fname = f"_{args.dataset_name}_{args.encoder.replace('_','-')}_seed{args.seed}"
+    if args.desc != '':
+       fname += f"_{args.desc}"
     args.fdir = os.path.join(args.results_dir, fname)
   
     if not os.path.exists(args.fdir):
@@ -61,7 +60,6 @@ def main(args):
     logger = logging.getLogger("train")
     logger.setLevel(logging.DEBUG)
     logger.handlers =  [logging.StreamHandler(), logging.FileHandler(os.path.join(args.fdir, "log.txt"))]
-
 
     train_loader, test_loader, args = create_dataloaders(args)
 
@@ -147,10 +145,21 @@ def main(args):
                     'done': False,
                    }, os.path.join(args.fdir, "checkpoint.pt") )
 
-        log_str = 'test_2' ###f"Epoch {epoch}/{args.num_epochs} | " + f"LOSS={train_loss:.4f}<{test_loss:.4f}> " + f"ROT ERR={np.degrees(test_acc_median):.2f}° | " + f"time={time.perf_counter() - time_before_epoch:.1f}s | " + f"lr={lr_scheduler.get_last_lr()[0]:.1e}"
+        log_str = f"Epoch {epoch}/{args.num_epochs} | " \
+                  + f"LOSS={train_loss:.4f}<{test_loss:.4f}> " \
+                  + f"ROT ERR={np.degrees(test_acc_median):.2f}° | " \
+                  + f"time={time.perf_counter() - time_before_epoch:.1f}s | " \
+                  + f"lr={lr_scheduler.get_last_lr()[0]:.1e}"
+
+       
         logger.info(log_str)
         time_before_epoch = time.perf_counter()
 
+    ### save final trained model
+    torch.save({'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'done' : True,
+               }, os.path.join(args.fdir, "checkpoint.pt"))
 
 
 if __name__ == "__main__":
@@ -177,7 +186,7 @@ if __name__ == "__main__":
     ### dataset and results info
 	parser.add_argument('--dataset_path', type=str, default='./data')
 	parser.add_argument('--results_dir', type=str, default='results')
-	parser.add_argument('--dataset_name', type=str, default='caltech101', choices=['imagenet',  'caltech101', 'caltech256' , 'coco' , 'placeholder' ] )
+	parser.add_argument('--dataset_name', type=str, default='placeholder', choices=['imagenet',  'caltech101', 'caltech256' , 'coco' , 'placeholder' ] )
 
     ### number of workers used
 	parser.add_argument('--num_workers', type=int, default=4, help='workers used by dataloader')
