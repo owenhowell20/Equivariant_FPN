@@ -177,7 +177,7 @@ if __name__ == "__main__":
     ### dataset and results info
 	parser.add_argument('--dataset_path', type=str, default='./data')
 	parser.add_argument('--results_dir', type=str, default='results')
-	parser.add_argument('--dataset_name', type=str, default='coco', choices=['imagenet',  'caltech' , 'coco' , 'placeholder' ] )
+	parser.add_argument('--dataset_name', type=str, default='caltech101', choices=['imagenet',  'caltech101', 'caltech256' , 'coco' , 'placeholder' ] )
 
     ### number of workers used
 	parser.add_argument('--num_workers', type=int, default=4, help='workers used by dataloader')
