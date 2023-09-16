@@ -10,7 +10,7 @@ from bottleneck import Equ_Bottleneck
 from eqv_fpn import eqv_FPN101
 
 ### To Do:
-### needs to accept varible input shape
+### needs to accept varible input shapes
 
 class FPN_predictor(nn.Module):
 	"""docstring for SO(2) equivarient prediction with FPN head"""

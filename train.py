@@ -10,6 +10,7 @@ import numpy as np
 import torch.nn.functional as F
 import torch
 import warnings
+import wandb
 
 from datasets import create_dataloaders
 from model import FPN_predictor
@@ -22,8 +23,10 @@ print()
 warnings.filterwarnings( 'ignore', category=UserWarning )
 
 ### TO DO: 
-### 1. make accuracy mesure output for each class
-### 2. fix imagenet dataloader
+### 1. make accuracy mesure/ confusion matrix output for each class
+### 2. fix imagenet dataloader and coco dataloader
+### 3. write in wandb checkpoints
+### 4. add multi-gpu support
 
 
 ### create equivarient FPN model
@@ -39,6 +42,26 @@ def create_model(args):
 
 
 def main(args):
+
+
+    ###
+    wandb.init(
+    # set the wandb project where this run will be logged
+    project="Equivariant_FPN",
+    # track hyperparameters and run metadata
+    config={
+    "dataset_name": args.dataset_name,
+    "learning_rate": args.lr_initial,
+    "encoder": args.encoder,
+    "epochs": args.num_epochs,
+    "num_workers": args.num_workers,
+    "batch_size": args.batch_size,
+    "lr_step_size": args.lr_step_size,
+    "lr_decay_rate": args.lr_decay_rate,
+    "so2_gspace": args.so2_gspace,
+    "num_epochs":args.num_epochs,
+    }
+    )    
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -97,7 +120,7 @@ def main(args):
             optimizer.step()
 
             train_loss += loss.item()
-            train_acc.append(per_correct)
+            train_acc.append( per_correct.cpu().numpy() )
 
         train_loss /= batch_idx + 1
         train_acc_median = np.median(train_acc)
@@ -114,7 +137,7 @@ def main(args):
                 per_correct = num_correct/args.batch_size
 
             test_loss += loss.item()
-            test_acc.append(per_correct)
+            test_acc.append( per_correct.cpu().numpy() )
 
         model.train()
         test_loss /= batch_idx + 1
@@ -125,11 +148,7 @@ def main(args):
 
         per_class_err = {}
         test_acc = np.array(test_acc).flatten()
-        # test_cls = np.array(test_cls).flatten()
-        # for i, cls in enumerate(args.class_names):
-        #     per_class_err[cls] = f"{np.degrees(np.median(test_acc[test_cls == i])):.1f}"
-
-        logger.info( str(per_class_err) )
+        logger.info( str(test_acc) )
 
         data.append( dict(epoch=epoch,
                          time_elapsed=time.perf_counter() - time_before_epoch,
@@ -140,6 +159,16 @@ def main(args):
                          lr=optimizer.param_groups[0]['lr'],
                         ) )
         lr_scheduler.step()
+
+        ###wandb log
+        wandb.log(dict(epoch=epoch,
+                         time_elapsed=time.perf_counter() - time_before_epoch,
+                         train_loss=train_loss,
+                         test_loss=test_loss,
+                         train_acc_median=train_acc_median,
+                         test_acc_median=test_acc_median,
+                         current_lr=optimizer.param_groups[0]['lr'],
+                        ))
 
         ### checkpointing
         torch.save( {'epoch': epoch,
@@ -176,10 +205,10 @@ if __name__ == "__main__":
 	parser.add_argument('--encoder', type=str, default='eqv_fpn', choices=[ 'fpn', 'eqv_fpn' ] , help='Choice of Network Head')
 
 	### training params:
-	parser.add_argument('--num_epochs', type=int, default=100)
+	parser.add_argument('--num_epochs', type=int, default=500)
 	parser.add_argument('--batch_size', type=int, default=64)
 	parser.add_argument('--lr_initial', type=float, default=0.001)
-	parser.add_argument('--lr_step_size', type=int, default=15)
+	parser.add_argument('--lr_step_size', type=int, default=50)
 	parser.add_argument('--lr_decay_rate', type=float, default=0.1)
 	parser.add_argument('--sgd_momentum', type=float, default=0.9)
 	parser.add_argument('--use_nesterov', type=int, default=1)
