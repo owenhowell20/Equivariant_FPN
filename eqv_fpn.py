@@ -153,12 +153,11 @@ def eqv_FPN101(so2_gspace):
     
     return eqv_FPN( so2_gspace , Equ_Bottleneck, [2,2,2,2] ) 
 
+### deeper so2-equivarient feature pyrimid network
+def eqv_FPN210(so2_gspace):
+    
+    return eqv_FPN( so2_gspace , Equ_Bottleneck, [4,4,4,4] ) 
 
-def test():
-    net = eqv_FPN101()
-    fms = net( Variable(torch.randn(1,3,600,900)) )
-    for fm in fms:
-        print(fm.size())
 
 
 if __name__ == "__main__":
@@ -178,6 +177,9 @@ if __name__ == "__main__":
 
     ### unchanged y-values:
     y = f( x.tensor )
+
+    print(y)
+    print(y[0].shape,y[1].shape,y[2].shape,y[3].shape)
 
     quit()
 

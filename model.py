@@ -7,28 +7,38 @@ from torch.autograd import Variable
 
 
 from bottleneck import Equ_Bottleneck
-from eqv_fpn import eqv_FPN101
+from eqv_fpn import eqv_FPN101, eqv_FPN210
+from recombination_module import concat_recombinator, quorum_recombinator
 
 ### To Do:
 ### needs to accept varible input shapes
 
 class FPN_predictor(nn.Module):
-	"""docstring for SO(2) equivarient prediction with FPN head"""
-	def __init__(self, so2_gspace, num_classes):
-		super( FPN_predictor, self).__init__()
-
-		### loss function
-		self.x_loss = nn.CrossEntropyLoss()
+	"""docstring for SO(2)-equivarient prediction with FPN head"""
+	def __init__(self, so2_gspace, num_classes , encoder , recombinator ):
+		super( FPN_predictor , self ).__init__()
 
 		self.num_classes = num_classes
 		self.so2_gspace = so2_gspace
 
-		### equivarient fpn head; input: (3,256,256) images --> outputs : [256,64,64] , [256,32,32] , [256,16,16] , [256,8,8]
-		self.fpn = eqv_FPN101( so2_gspace  ) 
+		### choice of FPN size:
+		### equivarient fpn head; input: (b,3,256,256) images --> outputs : [b,256,64,64] , [b,256,32,32] , [b,256,16,16] , [b,256,8,8]
+		if encoder=='eqv_fpn101':
+			self.fpn = eqv_FPN101( so2_gspace  ) 
+
+		elif encoder =='eqv_fpn210':
+			self.fpn = eqv_FPN210( so2_gspace  )
+
+		### choice of feature recombinator:
+		if recombinator=='concat_recombinator':
+			self.recombination_layer = concat_recombinator( self.num_classes )
+		elif recombinator == 'quorum_recombinator':
+			self.recombination_layer = quorum_recombinator( self.num_classes  )
+
 
 		#### set the so2 discritization, this should always be a power of 2 that is less than or equal to 64:
 		self.so2_gspace = so2_gspace
-		gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
+		gspace = e2cnn.gspaces.Rot2dOnR2( N=so2_gspace, maximum_frequency=None, fibergroup=None)
 
 		### 64 channel regular features
 		rho_input = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
@@ -90,26 +100,6 @@ class FPN_predictor(nn.Module):
 		self.max_pool2d_layer_2 = torch.nn.MaxPool2d( kernel_size=4, stride=None )
 		self.max_pool2d_layer_3 = torch.nn.MaxPool2d( kernel_size=4, stride=None )
 
-		### fully connected layers:
-		in_features = 512
-		out_features = 128
-		self.linear_0 = nn.Linear( in_features, out_features, bias=True, device=None, dtype=None)
-		self.dropout_0 = nn.Dropout(p=0.2)
-
-		self.linear_1 = nn.Linear( in_features, out_features, bias=True, device=None, dtype=None)
-		self.dropout_1 = nn.Dropout(p=0.2)
-
-		self.linear_2 = nn.Linear( in_features, out_features, bias=True, device=None, dtype=None)
-		self.dropout_2 = nn.Dropout(p=0.2)
-
-		self.linear_3 = nn.Linear( in_features, out_features, bias=True, device=None, dtype=None)
-		self.dropout_3 = nn.Dropout(p=0.2)
-
-		##the final linear layer
-		final_in_features = 4*out_features
-		final_out_features = self.num_classes
-		self.linear_final = nn.Linear( final_in_features, final_out_features, bias=True, device=None, dtype=None)
-
 
 	def forward(self,x):
 
@@ -138,37 +128,31 @@ class FPN_predictor(nn.Module):
 		### third level
 		z3 = self.relu_three( self.bn_three(  self.conv_three(y3) ) ) ### [b,512, 4,4 ]
 
+		### maybe one additional set of convs here to make all features invarient, then no need for maxpool???
+		### i.e. conv: [b,512,4,4] --> torch.squeeze( [b,512,1,1] )
+
 		### maxpool layers
 		w0 = torch.squeeze( self.max_pool2d_layer_0( z0_c.tensor ) )
 		w1 = torch.squeeze( self.max_pool2d_layer_1( z1_b.tensor ) )
 		w2 = torch.squeeze( self.max_pool2d_layer_2( z2_a.tensor ) )
 		w3 = torch.squeeze( self.max_pool2d_layer_3( z3.tensor ) )
 
-		### now fully connected layers
-		w0 = self.dropout_0( self.linear_0( w0 ) )
-		w1 = self.dropout_1( self.linear_1( w1 ) )
-		w2 = self.dropout_2( self.linear_2( w2 ) )
-		w3 = self.dropout_3( self.linear_3( w3 ) )
-		
-		### concat and a final linear layer:
-		c = torch.cat( (w0,w1,w2,w3) , 1 )
-		outputs = self.linear_final( c )
-
-		### softmax
-		outputs = nn.functional.softmax( outputs , dim=1 )
+		### Now, recombine: w0 , w1 , w2 , w3 features, all have shape [b,512]
+		outputs = self.recombination_layer( w0 , w1 , w2 , w3 )
 
 		return outputs
 
+
 	def compute_loss(self, images, labels ):
 
-		x = self.forward( images )
-		loss = nn.CrossEntropyLoss()( x , labels )
+		outputs = self.forward( images )
+		loss = nn.CrossEntropyLoss()( outputs , labels )
 
-		preds = torch.argmax(x, 1) ### prediction indices, size: [batch size]
+		preds = torch.argmax(outputs, 1) ### prediction indices, size: [batch size]
 
 		num_correct = torch.sum( torch.eq( preds , labels ) )
 
-		return loss, num_correct
+		return loss, num_correct, preds
 
 
 if __name__ == "__main__":
@@ -176,40 +160,48 @@ if __name__ == "__main__":
 	import numpy as np
 	
 	so2_gspace = 4
-	num_classes = 3
+	num_classes = 10
 	batch_size = 10
+
+	outputs = torch.rand(batch_size , num_classes )
+	outputs = nn.functional.softmax( outputs , dim=1 )
+
 
 	images = torch.rand( batch_size , 3 , 256 , 256 )
 	labels = torch.randint( num_classes , (batch_size, ) )
 
-	### model
-	f = FPN_predictor( so2_gspace, num_classes )
-	loss , num_correct = f.compute_loss( images , labels )	
 
-	print("Percentage correct:" , per_correct)
-	print(val/batch_size)
+	### model
+	encoder_str =  'eqv_fpn101' 
+	recombinator_str = 'quorum_recombinator'
+	f = FPN_predictor( so2_gspace, num_classes , encoder_str , recombinator_str )
+	y = f.forward( images )
+
+	loss , num_correct, preds = f.compute_loss( images , labels  )	
+
+	print(preds.shape)
 	quit()
 
-	### check for so2-invarience of outputs:
-	for g in so2.elements:
+	# ### check for so2-invarience of outputs:
+	# for g in so2.elements:
 
-		x_rot = x.transform(g)
+	# 	x_rot = x.transform(g)
 
-		### new predictions
-		y_rot = f( x_rot.tensor )
+	# 	### new predictions
+	# 	y_rot = f( x_rot.tensor )
 
-		### mesure differences
-		d0 = z0.tensor - y_rot
+	# 	### mesure differences
+	# 	d0 = z0.tensor - y_rot
 		
 
-		### take the norm
-		print()
-		print("group element:" , g)
-		print( 'zero percentage error:' ,  torch.norm(d0)/torch.norm( z0.tensor ) ) 
-		print( 'one percentage error:' ,  torch.norm(d1)/torch.norm( z1.tensor ) ) 
-		print( 'two percentage error:' ,  torch.norm(d2)/torch.norm( z2.tensor ) ) 
-		print( 'three percentage error:' ,  torch.norm(d3)/torch.norm( z3.tensor ) ) 
-		print()
+	# 	### take the norm
+	# 	print()
+	# 	print("group element:" , g)
+	# 	print( 'zero percentage error:' ,  torch.norm(d0)/torch.norm( z0.tensor ) ) 
+	# 	print( 'one percentage error:' ,  torch.norm(d1)/torch.norm( z1.tensor ) ) 
+	# 	print( 'two percentage error:' ,  torch.norm(d2)/torch.norm( z2.tensor ) ) 
+	# 	print( 'three percentage error:' ,  torch.norm(d3)/torch.norm( z3.tensor ) ) 
+	# 	print()
 
 	### check types of outputs
 	###print( y_rot[0].type , y_rot[1].type , y_rot[2].type , y_rot[3].type )

@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import torch
 import warnings
 import wandb
+import matplotlib.pyplot as plt
 
 from datasets import create_dataloaders
 from model import FPN_predictor
@@ -23,16 +24,16 @@ print()
 warnings.filterwarnings( 'ignore', category=UserWarning )
 
 ### TO DO: 
-### 1. make accuracy mesure/ confusion matrix output for each class
+### 1. make accuracy mesure+confusion matrix output for each class, also need to get class names
 ### 2. fix imagenet dataloader and coco dataloader
-### 3. write in wandb checkpoints
+### 3. write in wandb gradients check
 ### 4. add multi-gpu support
 
 
 ### create equivarient FPN model
 def create_model(args):
 
-    model = FPN_predictor( so2_gspace=args.so2_gspace, num_classes=args.num_classes ).to(args.device)
+    model = FPN_predictor( so2_gspace=args.so2_gspace, num_classes=args.num_classes , encoder = args.encoder , recombinator=args.recombinator ).to(args.device)
 
     num_params = sum( p.numel() for p in model.parameters() if p.requires_grad )
     print( 'total number of model parameters:' , num_params )
@@ -42,7 +43,6 @@ def create_model(args):
 
 
 def main(args):
-
 
     ###
     wandb.init(
@@ -54,6 +54,7 @@ def main(args):
     "learning_rate": args.lr_initial,
     "encoder": args.encoder,
     "epochs": args.num_epochs,
+    "recombinator": args.recombinator,
     "num_workers": args.num_workers,
     "batch_size": args.batch_size,
     "lr_step_size": args.lr_step_size,
@@ -111,9 +112,9 @@ def main(args):
         train_acc = []
         time_before_epoch = time.perf_counter()
         for batch_idx, batch in enumerate(train_loader):
-            batch = {k:v.to(args.device) for k,v in batch.items()}
+            batch = { k:v.to(args.device) for k,v in batch.items() }
             
-            loss, num_correct = model.compute_loss(**batch)
+            loss, num_correct, preds = model.compute_loss(**batch)
             per_correct = num_correct/args.batch_size
             optimizer.zero_grad()
             loss.backward()
@@ -133,7 +134,7 @@ def main(args):
         for batch_idx, batch in enumerate(test_loader):
             batch = {k:v.to(args.device) for k,v in batch.items()}
             with torch.no_grad():
-                loss, num_correct = model.compute_loss(**batch)
+                loss, num_correct, preds = model.compute_loss(**batch)
                 per_correct = num_correct/args.batch_size
 
             test_loss += loss.item()
@@ -145,6 +146,14 @@ def main(args):
 
         print( "test loss:" , test_loss )
         print("Test Median Batch Percentage Correct:", test_acc )
+
+        ### make a plot of the last image in last batch with output predictions
+        plt.imshow( batch['images'][0].cpu().numpy() )
+        plt.title( "Correct label:" + str( batch['labels'][0].cpu().numpy() )  )
+        plt.xlabel( "Predicted label:"+str( preds[0].cpu().numpy() ) )
+        wandb.log( {"chart": plt} )
+        plt.clf()
+
 
         per_class_err = {}
         test_acc = np.array(test_acc).flatten()
@@ -202,7 +211,8 @@ if __name__ == "__main__":
 
 	### model architecture params:
 	parser.add_argument('--so2_gspace', type=int, default=4, help='Discretization of SO(2) Group')
-	parser.add_argument('--encoder', type=str, default='eqv_fpn', choices=[ 'fpn', 'eqv_fpn' ] , help='Choice of Network Head')
+	parser.add_argument('--encoder', type=str, default='eqv_fpn101', choices=[ 'fpn', 'eqv_fpn101', 'eqv_fpn210' ] , help='Choice of FPN Head')
+    parser.add_argument('--recombinator', type=str, default='concat', choices=[ 'concat' , 'quorum' , 'attention' ] , help='Choice of feature recombination module')
 
 	### training params:
 	parser.add_argument('--num_epochs', type=int, default=500)
@@ -213,7 +223,6 @@ if __name__ == "__main__":
 	parser.add_argument('--sgd_momentum', type=float, default=0.9)
 	parser.add_argument('--use_nesterov', type=int, default=1)
 	parser.add_argument('--weight_decay', type=float, default=0)
-
 
     ### dataset and results info
 	parser.add_argument('--dataset_path', type=str, default='./data')

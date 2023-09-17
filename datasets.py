@@ -192,19 +192,24 @@ if __name__ == "__main__":
     ### dataset and results info
 	parser.add_argument('--dataset_path', type=str, default='./data')
 	parser.add_argument('--results_dir', type=str, default='results')
-	parser.add_argument('--dataset_name', type=str, default='caltech', choices=['imagenet',  'caltech' , 'coco' , 'placeholder' ] )
+	parser.add_argument('--dataset_name', type=str, default='caltech256', choices=['imagenet',  'caltech101' , 'caltech256' , 'coco' , 'placeholder' ] )
 
     ### number of workers used
 	parser.add_argument('--num_workers', type=int, default=4, help='workers used by dataloader')
 	args = parser.parse_args()
 
+	
+
 	train_loader , test_loader , args = create_dataloaders(args)
 
+	from model import FPN_predictor
+	model = FPN_predictor( so2_gspace=args.so2_gspace, num_classes=args.num_classes )
 
-	time_before_epoch = time.perf_counter()
+
 	for batch_idx, batch in enumerate(train_loader):
-		batch = { k:v.to(args.device) for k,v in batch.items() }
+		batch = { k:v for k,v in batch.items() }
 
-		print(batch)
+		loss, num_correct, preds = model.compute_loss(**batch)
+		print(loss)
 
 
