@@ -10,8 +10,6 @@ from bottleneck import Equ_Bottleneck
 from eqv_fpn import eqv_FPN101, eqv_FPN210
 from recombination_module import concat_recombinator, quorum_recombinator
 
-### To Do:
-### needs to accept varible input shapes
 
 class FPN_predictor(nn.Module):
 	"""docstring for SO(2)-equivarient prediction with FPN head"""
@@ -30,11 +28,10 @@ class FPN_predictor(nn.Module):
 			self.fpn = eqv_FPN210( so2_gspace  )
 
 		### choice of feature recombinator:
-		if recombinator=='concat_recombinator':
+		if recombinator=='concat':
 			self.recombination_layer = concat_recombinator( self.num_classes )
-		elif recombinator == 'quorum_recombinator':
+		elif recombinator == 'quorum':
 			self.recombination_layer = quorum_recombinator( self.num_classes  )
-
 
 		#### set the so2 discritization, this should always be a power of 2 that is less than or equal to 64:
 		self.so2_gspace = so2_gspace
@@ -148,7 +145,7 @@ class FPN_predictor(nn.Module):
 		outputs = self.forward( images )
 		loss = nn.CrossEntropyLoss()( outputs , labels )
 
-		preds = torch.argmax(outputs, 1) ### prediction indices, size: [batch size]
+		preds = torch.argmax( outputs, 1) ### prediction indices, size: [batch size]
 
 		num_correct = torch.sum( torch.eq( preds , labels ) )
 

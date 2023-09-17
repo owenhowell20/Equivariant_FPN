@@ -20,7 +20,7 @@ def create_dataloaders(args):
 		test_size = len(dataset) - train_size
 		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
 
-		args.img_shape = 256 
+		args.img_shape = 256
 		args.num_classes = 256
 
 		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
@@ -48,8 +48,8 @@ def create_dataloaders(args):
 		test_size = len(dataset) - train_size
 		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
 
-		args.img_shape = 256 #train_set.img_shape[1]
-		args.num_classes = 80 #train_set.num_classes
+		args.img_shape = 256 
+		args.num_classes = 80
 
 		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
 
@@ -98,7 +98,7 @@ def create_dataloaders(args):
 		train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
 
 		args.img_shape = 256
-		args.num_classes = 1000 ###train_set.num_classes
+		args.num_classes = 1000
 
 		print( f'{len(train_set)} train imgs; {len(test_set)} test imgs' )
 
@@ -175,8 +175,9 @@ if __name__ == "__main__":
 	parser.add_argument('--desc', type=str, default='')
 
 	### model architecture params:
+	parser.add_argument('--encoder', type=str, default='eqv_fpn210', choices=[ 'fpn', 'eqv_fpn101', 'eqv_fpn210' ] , help='Choice of FPN Head')
+	parser.add_argument('--recombinator', type=str, default='concat', choices=[ 'concat' , 'quorum' , 'attention' ] , help='Choice of feature recombination module')
 	parser.add_argument('--so2_gspace', type=int, default=4, help='Discretization of SO(2) Group')
-	parser.add_argument('--encoder', type=str, default='eqv_fpn', choices=[ 'fpn', 'eqv_fpn' ] , help='Choice of Network Head')
 
 	### training params:
 	parser.add_argument('--num_epochs', type=int, default=100)
@@ -192,18 +193,17 @@ if __name__ == "__main__":
     ### dataset and results info
 	parser.add_argument('--dataset_path', type=str, default='./data')
 	parser.add_argument('--results_dir', type=str, default='results')
-	parser.add_argument('--dataset_name', type=str, default='caltech256', choices=['imagenet',  'caltech101' , 'caltech256' , 'coco' , 'placeholder' ] )
+	parser.add_argument('--dataset_name', type=str, default='caltech101', choices=['imagenet',  'caltech101' , 'caltech256' , 'coco' , 'placeholder' ] )
 
     ### number of workers used
 	parser.add_argument('--num_workers', type=int, default=4, help='workers used by dataloader')
 	args = parser.parse_args()
 
 	
-
 	train_loader , test_loader , args = create_dataloaders(args)
 
 	from model import FPN_predictor
-	model = FPN_predictor( so2_gspace=args.so2_gspace, num_classes=args.num_classes )
+	model = FPN_predictor( so2_gspace=args.so2_gspace, num_classes=args.num_classes, encoder = args.encoder , recombinator=args.recombinator  )
 
 
 	for batch_idx, batch in enumerate(train_loader):

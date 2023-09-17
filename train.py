@@ -11,7 +11,6 @@ import torch.nn.functional as F
 import torch
 import warnings
 import wandb
-import matplotlib.pyplot as plt
 
 from datasets import create_dataloaders
 from model import FPN_predictor
@@ -23,11 +22,15 @@ print()
 
 warnings.filterwarnings( 'ignore', category=UserWarning )
 
-### TO DO: 
-### 1. make accuracy mesure+confusion matrix output for each class, also need to get class names
-### 2. fix imagenet dataloader and coco dataloader
-### 3. write in wandb gradients check
+### TO DO: (In order of importance)
+### 0. Email the SCC people: need multi-GPU and more memory
+### 1. write imagenet dataloader and coco dataloader
+### 2. write in wandb gradients check
+### 3. make accuracy mesure+confusion matrix output for each class, also need to get class names
 ### 4. add multi-gpu support
+### 5. Maybe need to add some semi-supervised preprocessing step: What should the latent space be?
+### 6. Check how balanced dataset is: compute the random cross entropy.
+### 7. add ADAM training method
 
 
 ### create equivarient FPN model
@@ -69,7 +72,8 @@ def main(args):
     if args.device != 'cpu':
         torch.cuda.manual_seed(args.seed)
 
-    fname = f"_{args.dataset_name}_{args.encoder.replace('_','-')}_seed{args.seed}"
+    ### file to save to
+    fname = f"_{args.dataset_name}_{args.encoder.replace('_','-')}_seed{args.seed}_{args.recombinator.replace('_','-')}"
     if args.desc != '':
        fname += f"_{args.desc}"
     args.fdir = os.path.join(args.results_dir, fname)
@@ -83,7 +87,7 @@ def main(args):
 
     logger = logging.getLogger("train")
     logger.setLevel(logging.DEBUG)
-    logger.handlers =  [logging.StreamHandler(), logging.FileHandler(os.path.join(args.fdir, "log.txt"))]
+    logger.handlers =  [ logging.StreamHandler(), logging.FileHandler(os.path.join(args.fdir, "log.txt")) ]
 
     train_loader, test_loader, args = create_dataloaders(args)
 
@@ -144,17 +148,6 @@ def main(args):
         test_loss /= batch_idx + 1
         test_acc_median = np.median(test_acc)
 
-        print( "test loss:" , test_loss )
-        print("Test Median Batch Percentage Correct:", test_acc )
-
-        ### make a plot of the last image in last batch with output predictions
-        plt.imshow( batch['images'][0].cpu().numpy() )
-        plt.title( "Correct label:" + str( batch['labels'][0].cpu().numpy() )  )
-        plt.xlabel( "Predicted label:"+str( preds[0].cpu().numpy() ) )
-        wandb.log( {"chart": plt} )
-        plt.clf()
-
-
         per_class_err = {}
         test_acc = np.array(test_acc).flatten()
         logger.info( str(test_acc) )
@@ -189,7 +182,7 @@ def main(args):
 
         log_str = f"Epoch {epoch}/{args.num_epochs} | " \
                   + f"LOSS={train_loss:.4f}<{test_loss:.4f}> " \
-                  + f"Percentage Correct={np.degrees(test_acc_median):.2f} | " \
+                  + f"Percentage Correct={test_acc_median:.2f} | " \
                   + f"time={time.perf_counter() - time_before_epoch:.1f}s | " \
                   + f"lr={lr_scheduler.get_last_lr()[0]:.1e}"
 
@@ -204,37 +197,35 @@ def main(args):
 
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser()
-	parser.add_argument('--seed', type=int, default=0)
-	parser.add_argument('--device', type=str, default='cuda')
-	parser.add_argument('--desc', type=str, default='')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--desc', type=str, default='')
 
-	### model architecture params:
-	parser.add_argument('--so2_gspace', type=int, default=4, help='Discretization of SO(2) Group')
-	parser.add_argument('--encoder', type=str, default='eqv_fpn101', choices=[ 'fpn', 'eqv_fpn101', 'eqv_fpn210' ] , help='Choice of FPN Head')
+    parser.add_argument('--encoder', type=str, default='eqv_fpn210', choices=[ 'fpn', 'eqv_fpn101', 'eqv_fpn210' ] , help='Choice of FPN Head')
     parser.add_argument('--recombinator', type=str, default='concat', choices=[ 'concat' , 'quorum' , 'attention' ] , help='Choice of feature recombination module')
+    parser.add_argument('--so2_gspace', type=int, default=4, help='Discretization of SO(2) Group')
 
-	### training params:
-	parser.add_argument('--num_epochs', type=int, default=500)
-	parser.add_argument('--batch_size', type=int, default=64)
-	parser.add_argument('--lr_initial', type=float, default=0.001)
-	parser.add_argument('--lr_step_size', type=int, default=50)
-	parser.add_argument('--lr_decay_rate', type=float, default=0.1)
-	parser.add_argument('--sgd_momentum', type=float, default=0.9)
-	parser.add_argument('--use_nesterov', type=int, default=1)
-	parser.add_argument('--weight_decay', type=float, default=0)
+    parser.add_argument('--num_epochs', type=int, default=500)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--lr_initial', type=float, default=0.01)
+    parser.add_argument('--lr_step_size', type=int, default=50)
+    parser.add_argument('--lr_decay_rate', type=float, default=0.05)
+    parser.add_argument('--sgd_momentum', type=float, default=0.8 )
+    parser.add_argument('--use_nesterov', type=int, default=1)
+    parser.add_argument('--weight_decay', type=float, default=0)
 
     ### dataset and results info
-	parser.add_argument('--dataset_path', type=str, default='./data')
-	parser.add_argument('--results_dir', type=str, default='results')
-	parser.add_argument('--dataset_name', type=str, default='caltech101', choices=['imagenet',  'caltech101', 'caltech256' , 'coco' , 'placeholder' ] )
+    parser.add_argument('--dataset_path', type=str, default='./data')
+    parser.add_argument('--results_dir', type=str, default='results')
+    parser.add_argument('--dataset_name', type=str, default='caltech101', choices=['imagenet',  'caltech101', 'caltech256' , 'coco' , 'placeholder' ] )
 
     ### number of workers used
-	parser.add_argument('--num_workers', type=int, default=4, help='workers used by dataloader')
-	args = parser.parse_args()
+    parser.add_argument('--num_workers', type=int, default=4, help='workers used by dataloader')
+    args = parser.parse_args()
 
-	start_time = datetime.now()
-	main(args)
+    start_time = datetime.now()
+    main(args)
 
 
 
