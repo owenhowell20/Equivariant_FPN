@@ -7,20 +7,25 @@ from torch.autograd import Variable
 ### bottleneck layer: regular features --> regular features
 class Equ_Bottleneck( nn.Module ):
 
-    ### expansion factor, the output dimension is always 4 times the number of hidden planes
-    expansion = 4 ### i.e output dimension = 4*planes
+    expansion_1 = 4
+    expansion_2 = 2
 
     ### so2_gspace is discritization, in_planes=number input channels, planes = number hidden channels
-    def __init__( self, so2_gspace, in_planes, planes,  stride ):
+    def __init__( self, so2_gspace, in_planes, planes,  stride, expansion=4 ):
         super(Equ_Bottleneck, self).__init__()
 
+        self.gspace_dim = 2*so2_gspace
+
+        ### expansion factor, the output dimension is always 4 times the number of hidden planes
+        self.expansion = expansion ### i.e output dimension = 4*planes
+
         ### muplicity of regular representations:
-        in_regular_mulplicity = int( in_planes/so2_gspace )
-        hidden_regular_mulplicity = int( planes/so2_gspace )
-        out_regular_mulplicity = int( self.expansion*planes/so2_gspace )
+        in_regular_mulplicity = int( in_planes/self.gspace_dim )
+        hidden_regular_mulplicity = int( planes/self.gspace_dim )
+        out_regular_mulplicity = int( self.expansion*planes/self.gspace_dim )
 
         ### declare SO(2) gspace
-        gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
+        gspace = e2cnn.gspaces.FlipRot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
 
         ### input, hidden and output representations
         rho_in = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*in_regular_mulplicity )
@@ -41,11 +46,10 @@ class Equ_Bottleneck( nn.Module ):
         self.relu_hidden = e2cnn.nn.ReLU( rho_hidden , inplace=False)
 
         ### layer 3, planes -> self.expansion*planes
-        ##self.conv3 = nn.Conv2d(planes, self.expansion*planes, kernel_size=1, bias=False) ### 3d conv
+        ##self.conv3 = nn.Conv2d(planes, self.expansion*planes, kernel_size=1, bias=False)
         self.conv3 =  e2cnn.nn.R2Conv( rho_hidden ,  rho_out ,  kernel_size=1, bias=False )
         self.bn3 = e2cnn.nn.InnerBatchNorm( rho_out )
         self.relu_out = e2cnn.nn.ReLU( rho_out , inplace=False)
-
 
         ### shortcut layer
         if stride != 1 or in_planes != self.expansion*planes:
@@ -61,28 +65,23 @@ class Equ_Bottleneck( nn.Module ):
     def forward(self, x):
 
         ### conv/bnorm layer 1
-        out = self.bn1( self.conv1( x ) )
-        out = self.relu_hidden( out )
+        out = self.relu_hidden(  self.bn1( self.conv1( x ) ) )
 
         ### conv/bnorm layer 2
-        out = self.bn2( self.conv2( out ) )
-        out = self.relu_hidden( out )
+        out = self.relu_hidden(  self.bn2( self.conv2( out ) ) )
 
         ### conv/bnorm layer 3
-        out = self.bn3( self.conv3(out) )
+        out = self.relu_out( self.bn3( self.conv3(out) ) )
                 
         ### add signals, they both transform in same way
         out = out + self.shortcut_conv( x ) 
 
-        ### final relu
-        out = self.relu_out(out)
-
         return out
 
-### check equivarient bottleneck
-def check_neck():
 
-    ### check neck
+if __name__ == "__main__":
+
+     ### check neck
     so2_gspace = 4
     in_planes = 64
     planes = 2*in_planes
@@ -94,18 +93,10 @@ def check_neck():
     x = torch.rand( 10 , in_planes , 256 , 256 )
 
     in_regular_mulplicity = int( in_planes/so2_gspace )
-    gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
+    gspace = e2cnn.gspaces.FlipRot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
     rho_in = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*in_regular_mulplicity )
     x = e2cnn.nn.GeometricTensor( x , rho_in )
 
     y = neck(x)
 
     print( 'full output shape:' , y.shape )
-
-    return 1
-
-
-
-if __name__ == "__main__":
-
-    check_neck()

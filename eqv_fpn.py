@@ -18,13 +18,15 @@ class eqv_FPN(nn.Module):
 
         #### set the so2 discritization, this should always be a power of 2 that is less than or equal to 64:
         self.so2_gspace = so2_gspace
-        gspace = e2cnn.gspaces.Rot2dOnR2( N=so2_gspace, maximum_frequency=None, fibergroup=None )
+        self.gspace_dim = 2*so2_gspace
+
+        gspace = e2cnn.gspaces.FlipRot2dOnR2( N=so2_gspace, maximum_frequency=None, fibergroup=None )
 
         ### 3 copies of the trivial rep: input images are 3 color channels
         self.rho_triv = e2cnn.nn.FieldType( gspace , [gspace.trivial_repr]*3 )
 
         ### 64 channel regular features
-        self.rho_first = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(64/so2_gspace) )
+        self.rho_first = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(64/self.gspace_dim ) )
 
         ### first convolutional layer: trivial --> regular
         self.conv_first = e2cnn.nn.R2Conv( self.rho_triv , self.rho_first , kernel_size=7, stride=2, padding=3, bias=False )
@@ -41,12 +43,12 @@ class eqv_FPN(nn.Module):
         self.layer4 = self._make_layer( block, so2_gspace , 512, num_blocks[3], stride=2 ) ### in_planes=512, out_planes = 4*num_blocks[3] 
  
         ### Top layer: convs a 2048 reg --> 256 reg
-        rho_top_in = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(2048/so2_gspace) )
-        rho_top_out = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
+        rho_top_in = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(2048/self.gspace_dim ) )
+        rho_top_out = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/self.gspace_dim ) )
         self.toplayer = e2cnn.nn.R2Conv( rho_top_in , rho_top_out , kernel_size=1, stride=1, padding=0 )
        
         ### Smooth layers: 3x convs regular 256 --> regular 256
-        rho_reg = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
+        rho_reg = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/self.gspace_dim ) )
         self.conv1 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1) 
         self.conv2 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1)
         self.conv3 = e2cnn.nn.R2Conv( rho_reg , rho_reg , kernel_size=3, stride=1, padding=1)
@@ -58,14 +60,14 @@ class eqv_FPN(nn.Module):
 
 
         ### Lateral layers, these are all convs of increasing powers of 2
-        rho_lat_a = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(1024/so2_gspace) )
-        rho_lat_b = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
+        rho_lat_a = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(1024/self.gspace_dim ) )
+        rho_lat_b = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/self.gspace_dim ) )
 
-        rho_lat_c = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(512/so2_gspace) )
-        rho_lat_d = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
+        rho_lat_c = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(512/self.gspace_dim ) )
+        rho_lat_d = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/self.gspace_dim ) )
 
-        rho_lat_e = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
-        rho_lat_f = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/so2_gspace) )
+        rho_lat_e = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/self.gspace_dim ) )
+        rho_lat_f = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/self.gspace_dim ) )
 
         ### lateral convolutions
         self.latlayer1 = e2cnn.nn.R2Conv( rho_lat_a , rho_lat_b , kernel_size=1, stride=1, padding=0)
@@ -84,8 +86,8 @@ class eqv_FPN(nn.Module):
         layers = []
 
         for stride in strides: ### changes the strides
-            layers.append( block( so2_gspace , self.in_planes, planes, stride) ) ### stride should be power of two
-            self.in_planes = planes * block.expansion
+            layers.append( block( so2_gspace , self.in_planes, planes, stride , expansion=4 ) ) ### stride should be power of two
+            self.in_planes = planes * block.expansion_1
 
         return nn.Sequential(*layers)
 
@@ -151,12 +153,12 @@ class eqv_FPN(nn.Module):
 ### so2-equivarient feature pyrimid network
 def eqv_FPN101(so2_gspace):
     
-    return eqv_FPN( so2_gspace , Equ_Bottleneck, [2,2,2,2] ) 
+    return eqv_FPN( so2_gspace , Equ_Bottleneck, [2,2,2,2] )  ### output shape: [b,]
 
 ### deeper so2-equivarient feature pyrimid network
 def eqv_FPN210(so2_gspace):
     
-    return eqv_FPN( so2_gspace , Equ_Bottleneck, [4,4,4,4] ) 
+    return eqv_FPN( so2_gspace , Equ_Bottleneck, [4,4,4,4] )  ### output shape: [b,]
 
 
 
@@ -164,7 +166,7 @@ if __name__ == "__main__":
 
     ### check for so2 equivarience
     so2_gspace = 4
-    gspace = e2cnn.gspaces.Rot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
+    gspace = e2cnn.gspaces.FlipRot2dOnR2(N=so2_gspace, maximum_frequency=None, fibergroup=None)
 
     ### 3 copies of the trivial rep: input images are 3 color channels
     rho_triv = e2cnn.nn.FieldType( gspace , [gspace.trivial_repr]*3 )
@@ -173,14 +175,11 @@ if __name__ == "__main__":
     x = torch.rand( 10 , 3 , 256 , 256 )
     x = e2cnn.nn.GeometricTensor( x , rho_triv )
 
-    f = eqv_FPN101( so2_gspace )
 
-    ### unchanged y-values:
+    f = eqv_FPN210( so2_gspace )
     y = f( x.tensor )
 
-    print(y)
-    print(y[0].shape,y[1].shape,y[2].shape,y[3].shape)
-
+    print( y[0].shape, y[1].shape, y[2].shape, y[3].shape )
     quit()
 
     ### check that each extracted feature has so2 equivarience

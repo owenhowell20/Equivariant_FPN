@@ -17,7 +17,7 @@ class concat_recombinator(nn.Module):
 		self.num_classes = num_classes
 
 		### fully connected layers:
-		in_features = 512
+		in_features = 1024
 		out_features = hidden_linear_size
 		self.linear_0 = nn.Linear( in_features, out_features, bias=True, device=None, dtype=None)
 		self.dropout_0 = nn.Dropout(p=0.2)
@@ -58,13 +58,13 @@ class concat_recombinator(nn.Module):
 ### quorum recombination
 class quorum_recombinator(nn.Module):
 
-	def __init__(self, num_classes , hidden_linear_size=128 ):
+	def __init__(self, num_classes , hidden_linear_size=256 ):
 		super( quorum_recombinator, self).__init__()
 
 		self.num_classes = num_classes
 
 		### fully connected layers:
-		in_features = 512
+		in_features = 1024
 		out_features = hidden_linear_size
 		self.linear_0 = nn.Linear( in_features, out_features, bias=True, device=None, dtype=None)
 		self.dropout_0 = nn.Dropout(p=0.2)
@@ -121,7 +121,7 @@ class attention_recombinator(nn.Module):
 		self.num_classes = num_classes
 
 		### fully connected layers:
-		in_features = 512
+		in_features = 1024
 		out_features = hidden_linear_size
 		self.linear_0 = nn.Linear( in_features, out_features, bias=True, device=None, dtype=None)
 		self.dropout_0 = nn.Dropout(p=0.2)
@@ -146,6 +146,11 @@ class attention_recombinator(nn.Module):
 		self.linear_final_c = nn.Linear( final_in_features, final_out_features, bias=True, device=None, dtype=None)
 		self.linear_final_d = nn.Linear( final_in_features, final_out_features, bias=True, device=None, dtype=None)
 
+		### attention encoders
+		self.Q_linear = nn.Linear( 512, final_out_features, bias=True, device=None, dtype=None)
+		self.K_linear = nn.Linear( 512, final_out_features, bias=True, device=None, dtype=None)
+		self.V_linear = nn.Linear( 512, final_out_features, bias=True, device=None, dtype=None)
+
 	def forward(self,w0,w1,w2,w3):
 
 		### now fully connected layers: output dim is [b,128]
@@ -153,7 +158,24 @@ class attention_recombinator(nn.Module):
 		w1 = self.dropout_1( self.linear_1( w1 ) )
 		w2 = self.dropout_2( self.linear_2( w2 ) )
 		w3 = self.dropout_3( self.linear_3( w3 ) )
+
+		### stack along new axis
+		s = torch.flatten( torch.stack( [w0,w1,w2,w3] , dim=1 ) , start_dim=1 )
+
 		
+		q_enc = self.Q_linear( s )
+		k_enc = self.K_linear( s )
+
+		print(q_enc.shape)
+		print(k_enc.shape)
+
+
+		attn_weights = q_enc@k_enc.T
+		attn_weights = attn_weights / torch.sum(attn_weights, 0) #softmax
+
+		print(attn_weights.shape)
+		quit()
+
 		### self-attention layer
 		attn_output, attn_output_weights = self.attention_layer( w0, w0, w0 )
 
@@ -182,18 +204,18 @@ class attention_recombinator(nn.Module):
 if __name__ == "__main__":
 
 	batch_size = 64
-	features = 512
+	features = 1024
 	num_classes = 101
 
 	### FPN features to be recombined: all transform in same SO(2)-feature type
-	w0 = torch.rand(batch_size , features )
-	w1 = torch.rand(batch_size , features )
-	w2 = torch.rand(batch_size , features )
-	w3 = torch.rand(batch_size , features )
+	w0 = torch.rand( batch_size , features )
+	w1 = torch.rand( batch_size , features )
+	w2 = torch.rand( batch_size , features )
+	w3 = torch.rand( batch_size , features )
 	
-	#recombination_layer = attention_recombinator(num_classes)
+	recombination_layer = attention_recombinator(num_classes, hidden_linear_size=128)
 	#recombination_layer = quorum_recombinator( num_classes )
-	recombination_layer = concat_recombinator( num_classes )
+	#recombination_layer = concat_recombinator( num_classes )
 	
 	outputs = recombination_layer.forward( w0 , w1 , w2 , w3 )
 

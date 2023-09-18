@@ -23,15 +23,14 @@ print()
 warnings.filterwarnings( 'ignore', category=UserWarning )
 
 ### TO DO: (In order of importance)
-### 0. Email the SCC people: need multi-GPU and more memory
 ### 1. write imagenet dataloader and coco dataloader
 ### 2. write in wandb gradients check
-### 3. make accuracy mesure+confusion matrix output for each class, also need to get class names
+### 3. make accuracy mesure+confusion matrix output for each class, also need to get class names from file
 ### 4. add multi-gpu support
-### 5. Maybe need to add some semi-supervised preprocessing step: What should the latent space be?
+### 5. Maybe need to add some semi-supervised preprocessing step: What should the latent space be? Add a decoder module that is later discarded
 ### 6. Check how balanced dataset is: compute the random cross entropy.
-### 7. add ADAM training method
-
+### 7. Maybe can change heads to be of resnet form
+### 8. Should last conv be to invarient features?
 
 ### create equivarient FPN model
 def create_model(args):
@@ -64,6 +63,7 @@ def main(args):
     "lr_decay_rate": args.lr_decay_rate,
     "so2_gspace": args.so2_gspace,
     "num_epochs":args.num_epochs,
+    "training_method":args.optimizer,
     }
     )    
 
@@ -73,7 +73,7 @@ def main(args):
         torch.cuda.manual_seed(args.seed)
 
     ### file to save to
-    fname = f"_{args.dataset_name}_{args.encoder.replace('_','-')}_seed{args.seed}_{args.recombinator.replace('_','-')}"
+    fname = f"_{args.dataset_name}_{args.encoder.replace('_','-')}_seed{args.seed}_{args.recombinator.replace('_','-')}_gspace{args.so2_gspace}_method{args.optimizer}"
     if args.desc != '':
        fname += f"_{args.desc}"
     args.fdir = os.path.join(args.results_dir, fname)
@@ -92,7 +92,14 @@ def main(args):
     train_loader, test_loader, args = create_dataloaders(args)
 
     model = create_model(args)
-    optimizer = torch.optim.SGD( model.parameters(), lr=args.lr_initial, momentum=args.sgd_momentum, weight_decay=args.weight_decay, nesterov=bool(args.use_nesterov), )
+
+    if args.optimizer=='sgd':
+        optimizer = torch.optim.SGD( model.parameters(), lr=args.lr_initial, momentum=args.sgd_momentum, weight_decay=args.weight_decay, nesterov=bool(args.use_nesterov), )
+    
+    elif args.optimizer=='adam':
+        optimizer = torch.optim.Adam( model.parameters(), lr=args.lr_initial, weight_decay=args.weight_decay  )
+
+    ### maybe should use alternating?
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_step_size, args.lr_decay_rate)
 
     if os.path.exists(os.path.join(args.fdir, "checkpoint.pt")):
@@ -106,6 +113,7 @@ def main(args):
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+        print("Model Loaded From File!")
         model.train()
     else:
         starting_epoch = 1
@@ -162,7 +170,7 @@ def main(args):
                         ) )
         lr_scheduler.step()
 
-        ###wandb log
+        ### wandb log
         wandb.log(dict(epoch=epoch,
                          time_elapsed=time.perf_counter() - time_before_epoch,
                          train_loss=train_loss,
@@ -203,9 +211,10 @@ if __name__ == "__main__":
     parser.add_argument('--desc', type=str, default='')
 
     parser.add_argument('--encoder', type=str, default='eqv_fpn210', choices=[ 'fpn', 'eqv_fpn101', 'eqv_fpn210' ] , help='Choice of FPN Head')
-    parser.add_argument('--recombinator', type=str, default='concat', choices=[ 'concat' , 'quorum' , 'attention' ] , help='Choice of feature recombination module')
+    parser.add_argument('--recombinator', type=str, default='quorum', choices=[ 'concat' , 'quorum' , 'attention' ] , help='Choice of feature recombination module')
     parser.add_argument('--so2_gspace', type=int, default=4, help='Discretization of SO(2) Group')
 
+    parser.add_argument('--optimizer', type=str, default='sgd', choices = ['sgd', 'adam'] , help='Choice of optimizer' )
     parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--lr_initial', type=float, default=0.01)
