@@ -5,9 +5,8 @@ import e2cnn
 from torch.autograd import Variable
 from bottleneck import Equ_Bottleneck
 
-
 class lateral_heads(nn.Module):
-	"""docstring for SO(2)-equivarient lateral resnet heads"""
+	"""docstring for SO(2)-equivarient shallow lateral resnet heads"""
 	def __init__(self, so2_gspace, head_number ):
 		super( lateral_heads , self ).__init__()
 
@@ -20,7 +19,7 @@ class lateral_heads(nn.Module):
 
 		gspace = e2cnn.gspaces.FlipRot2dOnR2( N=so2_gspace, maximum_frequency=None, fibergroup=None)
 		self.rho_output = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(expansion*256/self.gspace_dim)  )
-		self.rho = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int( expansion*expansion*256/self.gspace_dim ) )
+		self.rho = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(expansion* expansion*256/self.gspace_dim ) )
 
 		num_layers = 4 - head_number
 		layers = []
@@ -39,10 +38,51 @@ class lateral_heads(nn.Module):
 
 	def forward(self,x):
 
-		outputs = self.neck_2( self.head( self.neck_1( x ) ) )
-		outputs = self.pool(outputs)
+		x = self.neck_2( self.head( self.neck_1( x ) ) )
+		x = self.pool(x)
 
-		return outputs ### [b,1024,1,1]
+		return x ### [b,1024,1,1]
+
+
+class shallow_lateral_heads(nn.Module):
+	"""docstring for SO(2)-equivarient lateral resnet heads"""
+	def __init__(self, so2_gspace, head_number ):
+		super( shallow_lateral_heads , self ).__init__()
+
+		self.so2_gspace = so2_gspace
+		self.gspace_dim = 2*so2_gspace
+
+		gspace = e2cnn.gspaces.FlipRot2dOnR2( N=so2_gspace, maximum_frequency=None, fibergroup=None)
+	
+		expansion=2
+		self.rho_input = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(256/self.gspace_dim)  )
+		self.rho_output = e2cnn.nn.FieldType( gspace , [gspace.regular_repr]*int(expansion*256/self.gspace_dim)  )
+
+		self.conv_1 = e2cnn.nn.R2Conv( self.rho_input , self.rho_output , kernel_size=7, stride=2, padding=3, bias=False )
+		self.bn_1 = e2cnn.nn.InnerBatchNorm( self.rho_output ) 
+		self.relu_1 = e2cnn.nn.ReLU( self.rho_output )
+
+		num_layers = 3 - head_number
+		layers = []
+		for stride in range(num_layers):
+
+			conv = e2cnn.nn.R2Conv( self.rho_output , self.rho_output , kernel_size=7, stride=2, padding=3, bias=False )
+			bn = e2cnn.nn.InnerBatchNorm( self.rho_output ) 
+			relu = e2cnn.nn.ReLU( self.rho_output )
+
+			layers.append( conv )
+			layers.append( bn   )
+			layers.append( relu )
+
+		self.head = nn.Sequential(*layers)
+		self.pool = e2cnn.nn.NormMaxPool( self.rho_output , kernel_size=4 )
+
+	def forward(self,x):
+
+		x = self.head( self.relu_1( self.bn_1( self.conv_1( x ) ) ) )
+		x = self.pool(x)
+
+		return x ### [b,512,1,1]
 
 
 ### ResNet lateral heads
@@ -75,7 +115,7 @@ class ResNet_lateral_heads(nn.Module):
 	def forward(self,x):
 
 		outputs = self.neck_2( self.head( self.neck_1( x ) ) )
-		outputs = self.pool(outputs)
+		outputs = self.pool( outputs )
 
 		return outputs ### [b,1024,1,1]
 
@@ -105,16 +145,16 @@ if __name__ == "__main__":
 
 
 	### feature heads
-	head_0 = lateral_heads( so2_gspace=so2_gspace, head_number=0)
+	head_0 = shallow_lateral_heads( so2_gspace=so2_gspace, head_number=0)
 	outputs_0 = head_0(features_0)
 
-	head_1 = lateral_heads( so2_gspace=so2_gspace, head_number=1)
+	head_1 = shallow_lateral_heads( so2_gspace=so2_gspace, head_number=1)
 	outputs_1 = head_1(features_1)
 
-	head_2 = lateral_heads( so2_gspace=so2_gspace, head_number=2)
+	head_2 = shallow_lateral_heads( so2_gspace=so2_gspace, head_number=2)
 	outputs_2 = head_2(features_2)
 
-	head_3 = lateral_heads( so2_gspace=so2_gspace, head_number=3)
+	head_3 = shallow_lateral_heads( so2_gspace=so2_gspace, head_number=3)
 	outputs_3 = head_3(features_3)
 
 	print(outputs_0.shape)

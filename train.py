@@ -218,7 +218,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--lr_initial', type=float, default=0.01)
-    parser.add_argument('--lr_step_size', type=int, default=50)
+    parser.add_argument('--lr_step_size', type=int, default=100)
     parser.add_argument('--lr_decay_rate', type=float, default=0.05)
     parser.add_argument('--sgd_momentum', type=float, default=0.8 )
     parser.add_argument('--use_nesterov', type=int, default=1)
